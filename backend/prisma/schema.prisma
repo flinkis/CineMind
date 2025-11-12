@@ -1,0 +1,44 @@
+// Prisma schema for CineMind database
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// User likes - stores movies the user has liked
+model UserLike {
+  id            String   @id @default(cuid())
+  tmdbId        Int      @unique
+  title         String
+  overview      String?
+  posterPath    String?
+  releaseDate   String?
+  embedding     String   // JSON array of embedding vector
+  createdAt     DateTime @default(now())
+
+  @@index([tmdbId])
+}
+
+// Movie cache - stores upcoming and existing movies with embeddings
+model Movie {
+  id            String   @id @default(cuid())
+  tmdbId        Int      @unique
+  title         String
+  overview      String?
+  posterPath    String?
+  releaseDate   String?
+  popularity    Float?
+  voteAverage   Float?
+  embedding     String?  // JSON array of embedding vector (nullable for movies not yet processed)
+  isUpcoming    Boolean  @default(false)
+  updatedAt     DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([tmdbId])
+  @@index([isUpcoming])
+}
+
