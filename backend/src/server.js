@@ -12,6 +12,7 @@ import movieDetailsRoutes from './routes/movieDetails.js';
 import personDetailsRoutes from './routes/personDetails.js';
 import discoverRoutes from './routes/discover.js';
 import radarrRoutes from './routes/radarr.js';
+import { startScheduler } from './services/scheduler.js';
 
 // Load environment variables
 dotenv.config();
@@ -19,6 +20,11 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3001;
+
+// Background scheduler configuration
+const REFRESH_INTERVAL_HOURS = parseInt(process.env.REFRESH_INTERVAL_HOURS) || 24;
+const REFRESH_INITIAL_DELAY_MINUTES = parseInt(process.env.REFRESH_INITIAL_DELAY_MINUTES) || 5;
+const ENABLE_AUTO_REFRESH = process.env.ENABLE_AUTO_REFRESH !== 'false'; // Default to true
 
 // Middleware
 app.use(cors());
@@ -55,6 +61,16 @@ app.use((err, req, res, next) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 CineMind backend server running on http://localhost:${PORT}`);
+  
+  // Start background scheduler if enabled
+  if (ENABLE_AUTO_REFRESH) {
+    startScheduler({
+      intervalHours: REFRESH_INTERVAL_HOURS,
+      initialDelayMinutes: REFRESH_INITIAL_DELAY_MINUTES,
+    });
+  } else {
+    console.log('⚠️  Auto-refresh scheduler is disabled (set ENABLE_AUTO_REFRESH=true to enable)');
+  }
 });
 
 // Graceful shutdown

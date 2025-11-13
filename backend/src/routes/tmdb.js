@@ -1,14 +1,5 @@
 import express from 'express';
-import { prisma } from '../server.js';
-import {
-  getUpcomingMovies,
-  getMovieDetails,
-  formatMovieData,
-} from '../services/tmdb.js';
-import {
-  computeMovieEmbedding,
-  stringifyEmbedding,
-} from '../services/embeddings.js';
+import { refreshUpcomingMovies, getRefreshStatus } from '../services/movieRefresh.js';
 
 const router = express.Router();
 
@@ -39,7 +30,8 @@ const authenticateToken = (req, res, next) => {
  * Query params:
  * - api_token: API token for authentication (required)
  * - page: page number to fetch (default: 1)
- * - maxPages: maximum number of pages to fetch (default: 1)
+ * - maxPages: maximum number of pages to fetch. Use "all" or 0 to fetch all pages (default: "all")
+ * - force: force refresh even if movies were recently updated (default: false)
  * 
  * This endpoint:
  * 1. Fetches upcoming movies from TMDB
@@ -50,93 +42,43 @@ const authenticateToken = (req, res, next) => {
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const maxPages = parseInt(req.query.maxPages) || 1;
-
-    let totalFetched = 0;
-    let totalProcessed = 0;
-    let totalUpdated = 0;
-
-    // Fetch movies page by page
-    for (let currentPage = page; currentPage < page + maxPages; currentPage++) {
-      const tmdbResponse = await getUpcomingMovies(currentPage);
-      const movies = tmdbResponse.results || [];
-
-      totalFetched += movies.length;
-
-      // Process each movie
-      for (const tmdbMovie of movies) {
-        const movieData = formatMovieData(tmdbMovie);
-
-        try {
-          // Fetch full movie details (with credits, keywords, etc.) for richer embeddings
-          const fullMovieDetails = await getMovieDetails(tmdbMovie.id);
-          
-          // Compute embedding with full TMDB data for richer representation
-          const embedding = await computeMovieEmbedding(movieData, fullMovieDetails);
-          const embeddingString = stringifyEmbedding(embedding);
-
-          // Check if movie exists
-          const existingMovie = await prisma.movie.findUnique({
-            where: { tmdbId: movieData.tmdbId },
-          });
-
-          if (existingMovie) {
-            // Update existing movie
-            await prisma.movie.update({
-              where: { tmdbId: movieData.tmdbId },
-              data: {
-                title: movieData.title,
-                overview: movieData.overview,
-                posterPath: movieData.posterPath,
-                releaseDate: movieData.releaseDate,
-                popularity: movieData.popularity,
-                voteAverage: movieData.voteAverage,
-                embedding: embeddingString,
-                isUpcoming: true,
-                updatedAt: new Date(),
-              },
-            });
-            totalUpdated++;
-          } else {
-            // Create new movie
-            await prisma.movie.create({
-              data: {
-                tmdbId: movieData.tmdbId,
-                title: movieData.title,
-                overview: movieData.overview,
-                posterPath: movieData.posterPath,
-                releaseDate: movieData.releaseDate,
-                popularity: movieData.popularity,
-                voteAverage: movieData.voteAverage,
-                embedding: embeddingString,
-                isUpcoming: true,
-              },
-            });
-            totalProcessed++;
-          }
-        } catch (error) {
-          console.error(
-            `Error processing movie ${movieData.tmdbId}:`,
-            error.message
-          );
-          // Continue with next movie even if one fails
-        }
-      }
-
-      // If we've reached the last page, break
-      if (currentPage >= tmdbResponse.total_pages) {
-        break;
+    const maxPagesParam = req.query.maxPages;
+    // Default to fetching all pages, or parse the parameter
+    let maxPages = null; // null means fetch all pages
+    if (maxPagesParam && maxPagesParam !== 'all' && maxPagesParam !== '0') {
+      maxPages = parseInt(maxPagesParam);
+      if (isNaN(maxPages) || maxPages < 1) {
+        maxPages = null; // Invalid value, default to all
       }
     }
+    const force = req.query.force === 'true';
 
-    res.json({
-      message: 'TMDB movies refreshed',
-      stats: {
-        totalFetched,
-        totalProcessed,
-        totalUpdated,
-      },
-    });
+    const result = await refreshUpcomingMovies({ page, maxPages, force });
+
+    if (result.success) {
+      res.json({
+        message: 'TMDB movies refreshed',
+        stats: result.stats,
+      });
+    } else {
+      res.status(500).json({
+        error: result.error || 'Failed to refresh movies',
+        stats: result.stats,
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/dev/refresh_tmdb/status
+ * Get status of movie refresh
+ */
+router.get('/status', authenticateToken, async (req, res, next) => {
+  try {
+    const status = await getRefreshStatus();
+    res.json(status);
   } catch (error) {
     next(error);
   }

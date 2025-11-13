@@ -171,7 +171,8 @@ export async function computeMovieEmbedding(movie, tmdbMovie = null) {
 
 /**
  * Compute average embedding (user taste vector)
- * Takes an array of embeddings and returns their average
+ * Takes an array of embeddings and returns their normalized average
+ * The result is normalized to a unit vector for consistent cosine similarity calculations
  */
 export function computeAverageEmbedding(embeddings) {
   if (!embeddings || embeddings.length === 0) {
@@ -181,6 +182,7 @@ export function computeAverageEmbedding(embeddings) {
   const dimension = embeddings[0].length;
   const average = new Array(dimension).fill(0);
 
+  // Compute average
   for (const embedding of embeddings) {
     for (let i = 0; i < dimension; i++) {
       average[i] += embedding[i];
@@ -189,6 +191,15 @@ export function computeAverageEmbedding(embeddings) {
 
   for (let i = 0; i < dimension; i++) {
     average[i] /= embeddings.length;
+  }
+
+  // Normalize to unit vector to maintain proper cosine similarity
+  // This ensures the magnitude doesn't affect similarity scores
+  const norm = Math.sqrt(average.reduce((sum, val) => sum + val * val, 0));
+  if (norm > 0.0001) {
+    for (let i = 0; i < dimension; i++) {
+      average[i] = average[i] / norm;
+    }
   }
 
   return average;
@@ -235,6 +246,20 @@ export function computeRefinedTasteVector(likedEmbeddings, dislikedEmbeddings = 
   const refinedVector = new Array(likedVector.length);
   for (let i = 0; i < likedVector.length; i++) {
     refinedVector[i] = likedVector[i] - (dislikeWeight * dislikedVector[i]);
+  }
+
+  // Normalize the refined vector to maintain proper cosine similarity calculations
+  // This ensures the vector magnitude doesn't affect similarity scores
+  const norm = Math.sqrt(refinedVector.reduce((sum, val) => sum + val * val, 0));
+  if (norm > 0.0001) {
+    // Normalize to unit vector
+    for (let i = 0; i < refinedVector.length; i++) {
+      refinedVector[i] = refinedVector[i] / norm;
+    }
+  } else {
+    // If norm is too small, fall back to liked vector
+    console.warn('Refined taste vector norm too small, using liked vector only');
+    return likedVector;
   }
 
   return refinedVector;

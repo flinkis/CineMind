@@ -5,6 +5,7 @@ import {
   computeMovieEmbedding,
   stringifyEmbedding,
 } from '../services/embeddings.js';
+import { clearNormalizationCache } from '../services/matchScore.js';
 
 const router = express.Router();
 
@@ -59,6 +60,9 @@ router.post('/', async (req, res, next) => {
       },
     });
 
+    // Clear normalization cache when user preferences change
+    clearNormalizationCache();
+
     res.json({
       message: 'Movie added to liked list',
       movie: userLike,
@@ -98,6 +102,9 @@ router.delete('/:tmdbId', async (req, res, next) => {
     await prisma.userLike.delete({
       where: { tmdbId },
     });
+
+    // Clear normalization cache when user preferences change
+    clearNormalizationCache();
 
     res.json({
       message: 'Movie removed from liked list',

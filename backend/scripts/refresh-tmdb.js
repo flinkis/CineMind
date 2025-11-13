@@ -14,7 +14,11 @@ dotenv.config({ path: envPath });
 const API_TOKEN = process.env.API_TOKEN;
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 const PAGE = process.env.PAGE || 1;
-const MAX_PAGES = process.env.MAX_PAGES || 1;
+// Default to fetching all pages (null means all pages)
+// Set MAX_PAGES to a number to limit, or leave unset/0/null for all pages
+const MAX_PAGES = process.env.MAX_PAGES
+  ? (process.env.MAX_PAGES === 'all' || process.env.MAX_PAGES === '0' ? null : parseInt(process.env.MAX_PAGES))
+  : null; // Default to all pages
 
 if (!API_TOKEN) {
   console.error('❌ API_TOKEN not found in .env file');
@@ -26,25 +30,38 @@ async function refreshTMDB() {
   try {
     console.log('🔄 Fetching upcoming movies from TMDB...');
     console.log(`📡 Backend URL: ${BACKEND_URL}`);
-    console.log(`📄 Page: ${PAGE}, Max Pages: ${MAX_PAGES}`);
-    
+    if (MAX_PAGES === null) {
+      console.log(`📄 Page: ${PAGE}, Max Pages: ALL (fetching all pages)`);
+    } else {
+      console.log(`📄 Page: ${PAGE}, Max Pages: ${MAX_PAGES}`);
+    }
+
+    const params = {
+      api_token: API_TOKEN,
+      page: PAGE,
+    };
+
+    // Only add maxPages if it's not null (null means fetch all)
+    if (MAX_PAGES !== null) {
+      params.maxPages = MAX_PAGES;
+    } else {
+      params.maxPages = 'all'; // Use 'all' string for API endpoint
+    }
+
     const response = await axios.post(
       `${BACKEND_URL}/api/dev/refresh_tmdb`,
       {},
-      {
-        params: {
-          api_token: API_TOKEN,
-          page: PAGE,
-          maxPages: MAX_PAGES,
-        },
-      }
+      { params }
     );
 
     console.log('✅ Success!');
     console.log('📊 Stats:');
-    console.log(`   Total Fetched: ${response.data.stats.totalFetched}`);
-    console.log(`   Total Processed: ${response.data.stats.totalProcessed}`);
-    console.log(`   Total Updated: ${response.data.stats.totalUpdated}`);
+    console.log(`   Pages Fetched: ${response.data.stats.pagesFetched || 0}`);
+    console.log(`   Total Pages: ${response.data.stats.totalPages || 'unknown'}`);
+    console.log(`   Total Fetched: ${response.data.stats.totalFetched || 0}`);
+    console.log(`   Total Processed (new): ${response.data.stats.totalProcessed || 0}`);
+    console.log(`   Total Updated: ${response.data.stats.totalUpdated || 0}`);
+    console.log(`   Total Errors: ${response.data.stats.totalErrors || 0}`);
     console.log(`\n${response.data.message}`);
   } catch (error) {
     console.error('❌ Error:', error.message);

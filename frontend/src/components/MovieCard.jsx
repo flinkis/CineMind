@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import axios from 'axios';
 
 // Simple heart icon SVG component
 const HeartIcon = ({ filled, size = 20 }) => (
@@ -17,12 +19,29 @@ const HeartIcon = ({ filled, size = 20 }) => (
   </svg>
 );
 
+// Thumbs down icon SVG component
+const ThumbsDownIcon = ({ filled, size = 20 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill={filled ? 'currentColor' : 'none'}
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
+  </svg>
+);
+
 const Card = styled.div`
   background: ${(props) => props.theme.colors.surface};
   border-radius: ${(props) => props.theme.borderRadius.lg};
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s;
   border: 1px solid ${(props) => props.theme.colors.border};
+  cursor: ${(props) => (props.$clickable ? 'pointer' : 'default')};
 
   &:hover {
     transform: translateY(-4px);
@@ -61,14 +80,9 @@ const PlaceholderPoster = styled.div`
   font-size: ${(props) => props.theme.fontSizes.xl};
 `;
 
-const LikeButton = styled.button`
+const ActionButton = styled.button`
   position: absolute;
   top: ${(props) => props.theme.spacing.sm};
-  right: ${(props) => props.theme.spacing.sm};
-  background: ${(props) =>
-    props.$liked
-      ? props.theme.colors.like
-      : 'rgba(0, 0, 0, 0.6)'};
   border: none;
   border-radius: ${(props) => props.theme.borderRadius.full};
   width: 40px;
@@ -79,18 +93,45 @@ const LikeButton = styled.button`
   cursor: pointer;
   transition: all 0.2s;
   color: white;
+  z-index: 10;
 
   &:hover {
-    background: ${(props) =>
-      props.$liked
-        ? props.theme.colors.likeHover
-        : 'rgba(0, 0, 0, 0.8)'};
     transform: scale(1.1);
   }
 
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+`;
+
+const LikeButton = styled(ActionButton)`
+  right: ${(props) => props.theme.spacing.sm};
+  background: ${(props) =>
+    props.$liked
+      ? props.theme.colors.like
+      : 'rgba(0, 0, 0, 0.6)'};
+
+  &:hover {
+    background: ${(props) =>
+      props.$liked
+        ? props.theme.colors.likeHover
+        : 'rgba(0, 0, 0, 0.8)'};
+  }
+`;
+
+const DislikeButton = styled(ActionButton)`
+  left: ${(props) => props.theme.spacing.sm};
+  background: ${(props) =>
+    props.$disliked
+      ? props.theme.colors.dislike
+      : 'rgba(0, 0, 0, 0.6)'};
+
+  &:hover {
+    background: ${(props) =>
+      props.$disliked
+        ? props.theme.colors.dislikeHover
+        : 'rgba(0, 0, 0, 0.8)'};
   }
 `;
 
@@ -134,19 +175,82 @@ const Score = styled.span`
   font-weight: 600;
 `;
 
-function MovieCard({ movie, onLike, isLiked = false, showScore = false }) {
+function MovieCard({ 
+  movie, 
+  showScore = false,
+  showActions = true
+}) {
+  const tmdbId = movie.tmdbId || movie.id;
+  
+  // Use isLiked/isDisliked from movie prop if available, otherwise default to false
+  const [isLiked, setIsLiked] = useState(movie.isLiked || false);
+  const [isDisliked, setIsDisliked] = useState(movie.isDisliked || false);
   const [liking, setLiking] = useState(false);
+  const [disliking, setDisliking] = useState(false);
+  const navigate = useNavigate();
 
-  const handleLike = async () => {
-    if (liking || isLiked) return;
+  // Update state when movie prop changes (e.g., when switching pages)
+  useEffect(() => {
+    setIsLiked(movie.isLiked || false);
+    setIsDisliked(movie.isDisliked || false);
+  }, [movie.isLiked, movie.isDisliked]);
+
+  const handleLike = async (e) => {
+    e.stopPropagation(); // Prevent card click when clicking like button
+    if (liking || disliking || !tmdbId) return;
     
     setLiking(true);
     try {
-      await onLike(movie.tmdbId || movie.id);
+      if (isLiked) {
+        // Unlike the movie
+        await axios.delete(`/api/dev/user_like/${tmdbId}`);
+        setIsLiked(false);
+      } else {
+        // Like the movie - remove from dislikes if it was disliked
+        if (isDisliked) {
+          await axios.delete(`/api/dev/user_dislike/${tmdbId}`);
+          setIsDisliked(false);
+        }
+        await axios.post('/api/dev/user_like', { tmdbId });
+        setIsLiked(true);
+      }
     } catch (error) {
-      console.error('Error liking movie:', error);
+      console.error('Error liking/unliking movie:', error);
     } finally {
       setLiking(false);
+    }
+  };
+
+  const handleDislike = async (e) => {
+    e.stopPropagation(); // Prevent card click when clicking dislike button
+    if (liking || disliking || !tmdbId) return;
+    
+    setDisliking(true);
+    try {
+      if (isDisliked) {
+        // Undislike the movie
+        await axios.delete(`/api/dev/user_dislike/${tmdbId}`);
+        setIsDisliked(false);
+      } else {
+        // Dislike the movie - remove from likes if it was liked
+        if (isLiked) {
+          await axios.delete(`/api/dev/user_like/${tmdbId}`);
+          setIsLiked(false);
+        }
+        await axios.post('/api/dev/user_dislike', { tmdbId });
+        setIsDisliked(true);
+      }
+    } catch (error) {
+      console.error('Error disliking/undisliking movie:', error);
+    } finally {
+      setDisliking(false);
+    }
+  };
+
+  const handleCardClick = () => {
+    const tmdbId = movie.tmdbId || movie.id;
+    if (tmdbId) {
+      navigate(`/movie/${tmdbId}`);
     }
   };
 
@@ -154,29 +258,51 @@ function MovieCard({ movie, onLike, isLiked = false, showScore = false }) {
   const title = movie.title;
   const overview = movie.overview;
   const releaseDate = movie.releaseDate || movie.release_date;
-  const score = movie.similarity
-    ? `${(movie.similarity * 100).toFixed(1)}% match`
+  
+  // Check if movie has a match score (similarity or normalizedSimilarity)
+  // Use normalizedSimilarity if available, otherwise use raw similarity
+  const matchScore = movie.normalizedSimilarity !== undefined 
+    ? movie.normalizedSimilarity 
+    : (movie.similarity !== undefined ? movie.similarity : null);
+  
+  const hasMatchScore = matchScore !== null && matchScore !== undefined;
+  
+  // Show match score if it exists, otherwise show vote average
+  const score = hasMatchScore
+    ? `${(matchScore * 100).toFixed(1)}% match`
     : movie.voteAverage
     ? `${movie.voteAverage.toFixed(1)}/10`
     : null;
 
   return (
-    <Card>
+    <Card $clickable={true} onClick={handleCardClick}>
       <PosterContainer>
         {posterUrl ? (
           <Poster src={posterUrl} alt={title} />
         ) : (
           <PlaceholderPoster>No Poster</PlaceholderPoster>
         )}
-        {onLike && (
-          <LikeButton
-            $liked={isLiked}
-            onClick={handleLike}
-            disabled={liking || isLiked}
-            aria-label={isLiked ? 'Remove from likes' : 'Add to likes'}
-          >
-            <HeartIcon filled={isLiked} size={20} />
-          </LikeButton>
+        {showActions && (
+          <>
+            <DislikeButton
+              $disliked={isDisliked}
+              onClick={handleDislike}
+              disabled={disliking || liking}
+              aria-label={isDisliked ? 'Remove from dislikes' : 'Add to dislikes'}
+              title={isDisliked ? 'Undislike movie' : 'Dislike movie'}
+            >
+              <ThumbsDownIcon filled={isDisliked} size={20} />
+            </DislikeButton>
+            <LikeButton
+              $liked={isLiked}
+              onClick={handleLike}
+              disabled={liking || disliking}
+              aria-label={isLiked ? 'Remove from likes' : 'Add to likes'}
+              title={isLiked ? 'Unlike movie' : 'Like movie'}
+            >
+              <HeartIcon filled={isLiked} size={20} />
+            </LikeButton>
+          </>
         )}
       </PosterContainer>
       <CardContent>
@@ -184,7 +310,8 @@ function MovieCard({ movie, onLike, isLiked = false, showScore = false }) {
         {overview && <Overview>{overview}</Overview>}
         <Meta>
           {releaseDate && <span>{new Date(releaseDate).getFullYear()}</span>}
-          {showScore && score && <Score>{score}</Score>}
+          {/* Always show score if it exists (match score takes priority over vote average) */}
+          {score && <Score>{score}</Score>}
         </Meta>
       </CardContent>
     </Card>

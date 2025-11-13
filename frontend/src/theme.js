@@ -35,6 +35,8 @@ export const theme = {
     // Interactive colors
     like: '#ef4444', // Red for like button
     likeHover: '#dc2626',
+    dislike: '#8b5cf6', // Purple for dislike button
+    dislikeHover: '#7c3aed',
     
     // Border colors
     border: '#334155',

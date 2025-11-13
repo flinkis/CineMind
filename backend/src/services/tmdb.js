@@ -108,11 +108,63 @@ export async function getMovieExternalIds(tmdbId) {
 }
 
 /**
+ * Map our sort option to TMDB's sort_by parameter
+ * Returns null if the sort is not supported by TMDB (requires client-side sorting)
+ * 
+ * @param {string} sortBy - Our sort option (e.g., 'rating-desc', 'release-desc')
+ * @returns {string|null} TMDB sort_by parameter or null
+ */
+export function mapSortToTmdbSortBy(sortBy) {
+  const sortMap = {
+    'rating-desc': 'vote_average.desc',
+    'rating-asc': 'vote_average.asc',
+    'release-desc': 'release_date.desc',
+    'release-asc': 'release_date.asc',
+    'popularity-desc': 'popularity.desc',
+    'popularity-asc': 'popularity.asc',
+    'default': 'popularity.desc', // Default to popularity
+  };
+
+  return sortMap[sortBy] || null;
+}
+
+/**
  * Get upcoming movies from TMDB
  * Fetches movies that are scheduled for release in the future
+ * Uses discover endpoint to support sorting across all pages
  */
-export async function getUpcomingMovies(page = 1) {
+export async function getUpcomingMovies(page = 1, sortBy = null) {
   try {
+    if (!TMDB_API_KEY) {
+      throw new Error('TMDB_API_KEY is not configured in environment variables');
+    }
+
+    // Calculate date range for "upcoming" (from today to 6 months ahead)
+    const today = new Date();
+    const sixMonthsAhead = new Date(today);
+    sixMonthsAhead.setMonth(today.getMonth() + 6);
+
+    const dateFrom = today.toISOString().split('T')[0];
+    const dateTo = sixMonthsAhead.toISOString().split('T')[0];
+
+    // If sortBy is provided and can be mapped to TMDB, use discover endpoint
+    // Otherwise, use the original endpoint (for default/unsupported sorts)
+    const tmdbSortBy = sortBy ? mapSortToTmdbSortBy(sortBy) : 'release_date.asc';
+    
+    if (tmdbSortBy && sortBy !== 'default') {
+      // Use discover endpoint for TMDB-supported sorts
+      return await discoverMovies({
+        page,
+        sortBy: tmdbSortBy,
+        filters: {
+          'primary_release_date.gte': dateFrom,
+          'primary_release_date.lte': dateTo,
+          'with_release_type': '2|3', // Theatrical or Digital releases
+        },
+      });
+    }
+
+    // Fall back to original endpoint for default behavior
     const response = await axios.get(`${TMDB_BASE_URL}/movie/upcoming`, {
       params: {
         api_key: TMDB_API_KEY,
@@ -124,19 +176,38 @@ export async function getUpcomingMovies(page = 1) {
     return response.data;
   } catch (error) {
     console.error('TMDB upcoming movies error:', error.message);
+    if (error.response) {
+      console.error('TMDB API response:', error.response.data);
+      throw new Error(`Failed to fetch upcoming movies: ${error.response.data.status_message || error.message}`);
+    }
     throw new Error(`Failed to fetch upcoming movies: ${error.message}`);
   }
 }
 
 /**
  * Get popular movies
+ * Uses discover endpoint to support sorting across all pages
  */
-export async function getPopularMovies(page = 1) {
+export async function getPopularMovies(page = 1, sortBy = null) {
   try {
     if (!TMDB_API_KEY) {
       throw new Error('TMDB_API_KEY is not configured in environment variables');
     }
 
+    // If sortBy is provided and can be mapped to TMDB, use discover endpoint
+    // Otherwise, use the original endpoint (for default/unsupported sorts)
+    const tmdbSortBy = sortBy ? mapSortToTmdbSortBy(sortBy) : 'popularity.desc';
+    
+    if (tmdbSortBy && sortBy !== 'default') {
+      // Use discover endpoint for TMDB-supported sorts
+      return await discoverMovies({
+        page,
+        sortBy: tmdbSortBy,
+        filters: {},
+      });
+    }
+
+    // Fall back to original endpoint for default behavior
     const response = await axios.get(`${TMDB_BASE_URL}/movie/popular`, {
       params: {
         api_key: TMDB_API_KEY,
@@ -157,13 +228,31 @@ export async function getPopularMovies(page = 1) {
 
 /**
  * Get top rated movies
+ * Uses discover endpoint to support sorting across all pages
  */
-export async function getTopRatedMovies(page = 1) {
+export async function getTopRatedMovies(page = 1, sortBy = null) {
   try {
     if (!TMDB_API_KEY) {
       throw new Error('TMDB_API_KEY is not configured in environment variables');
     }
 
+    // If sortBy is provided and can be mapped to TMDB, use discover endpoint
+    // Otherwise, use the original endpoint (for default/unsupported sorts)
+    const tmdbSortBy = sortBy ? mapSortToTmdbSortBy(sortBy) : 'vote_average.desc';
+    
+    if (tmdbSortBy && sortBy !== 'default') {
+      // Use discover endpoint for TMDB-supported sorts
+      // Filter for movies with minimum vote count for quality
+      return await discoverMovies({
+        page,
+        sortBy: tmdbSortBy,
+        filters: {
+          'vote_count.gte': 50, // Minimum votes for quality
+        },
+      });
+    }
+
+    // Fall back to original endpoint for default behavior
     const response = await axios.get(`${TMDB_BASE_URL}/movie/top_rated`, {
       params: {
         api_key: TMDB_API_KEY,
@@ -184,13 +273,42 @@ export async function getTopRatedMovies(page = 1) {
 
 /**
  * Get now playing movies
+ * Uses discover endpoint to support sorting across all pages
  */
-export async function getNowPlayingMovies(page = 1) {
+export async function getNowPlayingMovies(page = 1, sortBy = null) {
   try {
     if (!TMDB_API_KEY) {
       throw new Error('TMDB_API_KEY is not configured in environment variables');
     }
 
+    // Calculate date range for "now playing" (last 2 weeks to 1 month ahead)
+    const today = new Date();
+    const twoWeeksAgo = new Date(today);
+    twoWeeksAgo.setDate(today.getDate() - 14);
+    const oneMonthAhead = new Date(today);
+    oneMonthAhead.setDate(today.getDate() + 30);
+
+    const dateFrom = twoWeeksAgo.toISOString().split('T')[0];
+    const dateTo = oneMonthAhead.toISOString().split('T')[0];
+
+    // If sortBy is provided and can be mapped to TMDB, use discover endpoint
+    // Otherwise, use the original endpoint (for default/unsupported sorts)
+    const tmdbSortBy = sortBy ? mapSortToTmdbSortBy(sortBy) : 'release_date.desc';
+    
+    if (tmdbSortBy && sortBy !== 'default') {
+      // Use discover endpoint for TMDB-supported sorts
+      return await discoverMovies({
+        page,
+        sortBy: tmdbSortBy,
+        filters: {
+          'primary_release_date.gte': dateFrom,
+          'primary_release_date.lte': dateTo,
+          'with_release_type': '2|3', // Theatrical or Digital releases
+        },
+      });
+    }
+
+    // Fall back to original endpoint for default behavior
     const response = await axios.get(`${TMDB_BASE_URL}/movie/now_playing`, {
       params: {
         api_key: TMDB_API_KEY,
@@ -290,3 +408,38 @@ export function getPosterUrl(posterPath) {
   return `${TMDB_IMAGE_BASE_URL}${posterPath}`;
 }
 
+/**
+ * Discover movies using TMDB discover endpoint
+ * This endpoint supports sort_by parameter for proper cross-page sorting
+ * 
+ * @param {Object} options - Discover options
+ * @param {number} options.page - Page number (default: 1)
+ * @param {string} options.sortBy - TMDB sort_by parameter (e.g., 'popularity.desc', 'release_date.desc', 'vote_average.desc')
+ * @param {Object} options.filters - Additional filters (e.g., { 'primary_release_date.gte': '2024-01-01' })
+ * @returns {Promise<Object>} TMDB response with results
+ */
+export async function discoverMovies({ page = 1, sortBy = 'popularity.desc', filters = {} } = {}) {
+  try {
+    if (!TMDB_API_KEY) {
+      throw new Error('TMDB_API_KEY is not configured in environment variables');
+    }
+
+    const params = {
+      api_key: TMDB_API_KEY,
+      page,
+      language: 'en-US',
+      sort_by: sortBy,
+      ...filters,
+    };
+
+    const response = await axios.get(`${TMDB_BASE_URL}/discover/movie`, { params });
+    return response.data;
+  } catch (error) {
+    console.error('TMDB discover movies error:', error.message);
+    if (error.response) {
+      console.error('TMDB API response:', error.response.data);
+      throw new Error(`Failed to discover movies: ${error.response.data.status_message || error.message}`);
+    }
+    throw new Error(`Failed to discover movies: ${error.message}`);
+  }
+}

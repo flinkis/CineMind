@@ -1,6 +1,12 @@
 import express from 'express';
 import { prisma } from '../server.js';
 import { getMovieDetails, getSimilarMovies, formatMovieData } from '../services/tmdb.js';
+import {
+  computeMovieMatchScore,
+  addMatchScoresToMovies,
+  clearNormalizationCache,
+} from '../services/matchScore.js';
+import { addUserPreferencesToMovies, addUserPreferencesToMovie } from '../services/userPreferences.js';
 
 const router = express.Router();
 
@@ -51,7 +57,7 @@ router.get('/:tmdbId', async (req, res, next) => {
           : null,
       }))
       // Remove duplicates by person ID
-      .filter((writer, index, self) => 
+      .filter((writer, index, self) =>
         index === self.findIndex((w) => w.id === writer.id)
       );
 
@@ -75,37 +81,32 @@ router.get('/:tmdbId', async (req, res, next) => {
       similarMovies = (similarResponse.results || [])
         .slice(0, 10)
         .map((movie) => formatMovieData(movie));
+
+      // Add match scores for similar movies that exist in DB (using global normalization)
+      similarMovies = await addMatchScoresToMovies(similarMovies);
+      
+      // Add user preferences (liked/disliked status) to similar movies
+      similarMovies = await addUserPreferencesToMovies(similarMovies);
     } catch (error) {
       console.error('Error fetching similar movies:', error.message);
       // Don't fail the entire request if similar movies fail
       similarMovies = [];
     }
 
-    // Check if movie is already liked
-    let isLiked = false;
-    try {
-      const existingLike = await prisma.userLike.findUnique({
-        where: { tmdbId },
-      });
-      isLiked = !!existingLike;
-    } catch (error) {
-      console.error('Error checking liked status:', error.message);
-      // Don't fail the entire request if liked status check fails
-      isLiked = false;
-    }
+    // Get liked/disliked status for the main movie
+    const mainMovie = {
+      tmdbId,
+      id: tmdbId,
+    };
+    const mainMovieWithPreferences = await addUserPreferencesToMovie(mainMovie);
+    const isLiked = mainMovieWithPreferences.isLiked || false;
+    const isDisliked = mainMovieWithPreferences.isDisliked || false;
 
-    // Check if movie is already disliked
-    let isDisliked = false;
-    try {
-      const existingDislike = await prisma.userDislike.findUnique({
-        where: { tmdbId },
-      });
-      isDisliked = !!existingDislike;
-    } catch (error) {
-      console.error('Error checking disliked status:', error.message);
-      // Don't fail the entire request if disliked status check fails
-      isDisliked = false;
-    }
+    // Compute match score for the main movie using global normalization (consistent with other endpoints)
+    const matchScoreResult = await computeMovieMatchScore(tmdbId, 0.5);
+    const matchScore = matchScoreResult?.similarity || null;
+    const normalizedMatchScore = matchScoreResult?.normalizedSimilarity || null;
+    const rawMatchScore = matchScoreResult?.rawSimilarity || null;
 
     // Format response
     const response = {
@@ -139,13 +140,13 @@ router.get('/:tmdbId', async (req, res, next) => {
       tmdbUrl: `https://www.themoviedb.org/movie/${movieDetails.id}`,
       trailer: trailer
         ? {
-            key: trailer.key,
-            name: trailer.name,
-            type: trailer.type,
-            site: trailer.site,
-            youtubeUrl: `https://www.youtube.com/watch?v=${trailer.key}`,
-            youtubeEmbedUrl: `https://www.youtube.com/embed/${trailer.key}`,
-          }
+          key: trailer.key,
+          name: trailer.name,
+          type: trailer.type,
+          site: trailer.site,
+          youtubeUrl: `https://www.youtube.com/watch?v=${trailer.key}`,
+          youtubeEmbedUrl: `https://www.youtube.com/embed/${trailer.key}`,
+        }
         : null,
       videos: videos.map((video) => ({
         key: video.key,
@@ -163,18 +164,21 @@ router.get('/:tmdbId', async (req, res, next) => {
       })),
       director: director
         ? {
-            id: director.id,
-            name: director.name,
-            profilePath: director.profile_path
-              ? `https://image.tmdb.org/t/p/w185${director.profile_path}`
-              : null,
-          }
+          id: director.id,
+          name: director.name,
+          profilePath: director.profile_path
+            ? `https://image.tmdb.org/t/p/w185${director.profile_path}`
+            : null,
+        }
         : null,
       writers: writers.length > 0 ? writers : null,
       cast,
       similarMovies: similarMovies.length > 0 ? similarMovies : null,
       isLiked,
       isDisliked,
+      similarity: matchScore,
+      normalizedSimilarity: normalizedMatchScore,
+      rawSimilarity: rawMatchScore,
     };
 
     res.json(response);

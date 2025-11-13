@@ -1,5 +1,7 @@
 import express from 'express';
 import { getPersonDetails } from '../services/tmdb.js';
+import { addMatchScoresToMovies } from '../services/matchScore.js';
+import { addUserPreferencesToMovies } from '../services/userPreferences.js';
 
 const router = express.Router();
 
@@ -68,21 +70,27 @@ router.get('/:personId', async (req, res, next) => {
       };
     });
 
+    // Add match scores for movies that exist in DB (using global normalization)
+    const moviesWithScores = await addMatchScoresToMovies(movies);
+
+    // Add user preferences (liked/disliked status)
+    const moviesWithPreferences = await addUserPreferencesToMovies(moviesWithScores);
+
     // Sort movies by release date (newest first)
-    movies.sort((a, b) => {
+    moviesWithPreferences.sort((a, b) => {
       if (!a.releaseDate) return 1;
       if (!b.releaseDate) return -1;
       return new Date(b.releaseDate) - new Date(a.releaseDate);
     });
 
     // Get top rated movies (rated 7.0 or higher, sorted by vote average)
-    const topRatedMovies = movies
+    const topRatedMovies = moviesWithPreferences
       .filter((movie) => movie.voteAverage >= 7.0 && movie.voteCount >= 100)
       .sort((a, b) => b.voteAverage - a.voteAverage)
       .slice(0, 10);
 
     // Get known for movies (top popular movies)
-    const knownForMovies = movies
+    const knownForMovies = moviesWithPreferences
       .filter((movie) => movie.popularity > 0 && movie.voteCount >= 50)
       .sort((a, b) => b.popularity - a.popularity)
       .slice(0, 10);
@@ -106,7 +114,7 @@ router.get('/:personId', async (req, res, next) => {
         ? `https://www.imdb.com/name/${externalIds.imdb_id}`
         : null,
       tmdbUrl: `https://www.themoviedb.org/person/${personDetails.id}`,
-      movies,
+      movies: moviesWithPreferences,
       topRatedMovies,
       knownForMovies,
       castCount: castMovies.length,

@@ -4,6 +4,8 @@ import styled from 'styled-components';
 import Navigation from './components/Navigation';
 import HomePage from './pages/HomePage';
 import RecommendationsPage from './pages/RecommendationsPage';
+import MovieDetailPage from './pages/MovieDetailPage';
+import PersonDetailPage from './pages/PersonDetailPage';
 
 const AppContainer = styled.div`
   min-height: 100vh;
@@ -23,6 +25,8 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/recommendations" element={<RecommendationsPage />} />
+          <Route path="/movie/:tmdbId" element={<MovieDetailPage />} />
+          <Route path="/person/:personId" element={<PersonDetailPage />} />
         </Routes>
       </MainContent>
     </AppContainer>
