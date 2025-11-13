@@ -9,7 +9,8 @@
     "start": "node src/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "refresh:tmdb": "node scripts/refresh-tmdb.js"
   },
   "dependencies": {
     "express": "^4.18.2",

@@ -2,6 +2,7 @@ import express from 'express';
 import { prisma } from '../server.js';
 import {
   getUpcomingMovies,
+  getMovieDetails,
   formatMovieData,
 } from '../services/tmdb.js';
 import {
@@ -67,8 +68,11 @@ router.post('/', authenticateToken, async (req, res, next) => {
         const movieData = formatMovieData(tmdbMovie);
 
         try {
-          // Compute embedding
-          const embedding = await computeMovieEmbedding(movieData);
+          // Fetch full movie details (with credits, keywords, etc.) for richer embeddings
+          const fullMovieDetails = await getMovieDetails(tmdbMovie.id);
+          
+          // Compute embedding with full TMDB data for richer representation
+          const embedding = await computeMovieEmbedding(movieData, fullMovieDetails);
           const embeddingString = stringifyEmbedding(embedding);
 
           // Check if movie exists

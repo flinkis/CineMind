@@ -1,10 +1,5 @@
 import express from 'express';
-import { prisma } from '../server.js';
-import {
-  parseEmbedding,
-  computeAverageEmbedding,
-  cosineSimilarity,
-} from '../services/embeddings.js';
+import { computeRecommendations } from './recommendations.js';
 import { Builder } from 'xml2js';
 
 const router = express.Router();
@@ -53,60 +48,19 @@ router.get('/recommendations', authenticateToken, async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit) || 20;
 
-    // Get all user liked movies
-    const userLikes = await prisma.userLike.findMany();
+    // Get recommendations using shared function
+    const movies = await computeRecommendations(limit);
 
-    if (userLikes.length === 0) {
-      // Return empty RSS feed if no likes
+    if (movies.length === 0) {
+      // Return empty RSS feed if no recommendations
       return res
         .status(200)
         .type('application/rss+xml')
         .send(generateEmptyRSS());
     }
-
-    // Compute user taste vector (average of all liked movie embeddings)
-    const embeddings = userLikes.map((like) =>
-      parseEmbedding(like.embedding)
-    ).filter(Boolean);
-
-    if (embeddings.length === 0) {
-      return res
-        .status(200)
-        .type('application/rss+xml')
-        .send(generateEmptyRSS());
-    }
-
-    const tasteVector = computeAverageEmbedding(embeddings);
-
-    // Get all upcoming movies with embeddings
-    const movies = await prisma.movie.findMany({
-      where: {
-        isUpcoming: true,
-        embedding: {
-          not: null,
-        },
-      },
-    });
-
-    // Compute similarity scores
-    const moviesWithScores = movies
-      .map((movie) => {
-        const movieEmbedding = parseEmbedding(movie.embedding);
-        if (!movieEmbedding) return null;
-
-        const similarity = cosineSimilarity(tasteVector, movieEmbedding);
-
-        return {
-          ...movie,
-          similarity,
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, limit);
 
     // Generate RSS XML
-    const rssXml = generateRSS(moviesWithScores);
+    const rssXml = generateRSS(movies);
 
     res.type('application/rss+xml').send(rssXml);
   } catch (error) {

@@ -9,8 +9,8 @@ import {
 const router = express.Router();
 
 /**
- * POST /api/dev/user_like
- * Add a liked movie to the user's preferences
+ * POST /api/dev/user_dislike
+ * Add a disliked movie to the user's preferences
  * 
  * Body: { tmdbId: number }
  * 
@@ -27,15 +27,26 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'tmdbId is required' });
     }
 
-    // Check if movie is already liked
+    // Check if movie is already disliked
+    const existingDislike = await prisma.userDislike.findUnique({
+      where: { tmdbId },
+    });
+
+    if (existingDislike) {
+      return res.json({
+        message: 'Movie already in disliked list',
+        movie: existingDislike,
+      });
+    }
+
+    // Also check if it's in likes - if so, remove it
     const existingLike = await prisma.userLike.findUnique({
       where: { tmdbId },
     });
 
     if (existingLike) {
-      return res.json({
-        message: 'Movie already in liked list',
-        movie: existingLike,
+      await prisma.userLike.delete({
+        where: { tmdbId },
       });
     }
 
@@ -48,7 +59,7 @@ router.post('/', async (req, res, next) => {
     const embeddingString = stringifyEmbedding(embedding);
 
     // Store in database
-    const userLike = await prisma.userLike.create({
+    const userDislike = await prisma.userDislike.create({
       data: {
         tmdbId: movieData.tmdbId,
         title: movieData.title,
@@ -60,8 +71,9 @@ router.post('/', async (req, res, next) => {
     });
 
     res.json({
-      message: 'Movie added to liked list',
-      movie: userLike,
+      message: 'Movie added to disliked list',
+      movie: userDislike,
+      removedFromLikes: !!existingLike,
     });
   } catch (error) {
     next(error);
@@ -69,13 +81,13 @@ router.post('/', async (req, res, next) => {
 });
 
 /**
- * DELETE /api/dev/user_like/:tmdbId
- * Remove a liked movie from the user's preferences
+ * DELETE /api/dev/user_dislike/:tmdbId
+ * Remove a disliked movie from the user's preferences
  * 
  * Params: { tmdbId: number }
  * 
  * This endpoint:
- * 1. Deletes the movie from the user's liked list
+ * 1. Deletes the movie from the user's disliked list
  */
 router.delete('/:tmdbId', async (req, res, next) => {
   try {
@@ -85,22 +97,22 @@ router.delete('/:tmdbId', async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid tmdbId' });
     }
 
-    // Check if movie is liked
-    const existingLike = await prisma.userLike.findUnique({
+    // Check if movie is disliked
+    const existingDislike = await prisma.userDislike.findUnique({
       where: { tmdbId },
     });
 
-    if (!existingLike) {
-      return res.status(404).json({ error: 'Movie not found in liked list' });
+    if (!existingDislike) {
+      return res.status(404).json({ error: 'Movie not found in disliked list' });
     }
 
     // Delete from database
-    await prisma.userLike.delete({
+    await prisma.userDislike.delete({
       where: { tmdbId },
     });
 
     res.json({
-      message: 'Movie removed from liked list',
+      message: 'Movie removed from disliked list',
       tmdbId,
     });
   } catch (error) {
@@ -109,22 +121,22 @@ router.delete('/:tmdbId', async (req, res, next) => {
 });
 
 /**
- * GET /api/dev/user_like
- * Get all liked movies
+ * GET /api/dev/user_dislike
+ * Get all disliked movies
  * 
- * Returns: Array of liked movies
+ * Returns: Array of disliked movies
  */
 router.get('/', async (req, res, next) => {
   try {
-    const likedMovies = await prisma.userLike.findMany({
+    const dislikedMovies = await prisma.userDislike.findMany({
       orderBy: {
         createdAt: 'desc',
       },
     });
 
     res.json({
-      movies: likedMovies,
-      count: likedMovies.length,
+      movies: dislikedMovies,
+      count: dislikedMovies.length,
     });
   } catch (error) {
     next(error);
