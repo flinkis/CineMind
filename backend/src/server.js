@@ -7,11 +7,15 @@ import userDislikeRoutes from './routes/userDislike.js';
 import tmdbRoutes from './routes/tmdb.js';
 import rssRoutes from './routes/rss.js';
 import searchRoutes from './routes/search.js';
+import tvSearchRoutes from './routes/tvSearch.js';
 import recommendationsRoutes from './routes/recommendations.js';
 import movieDetailsRoutes from './routes/movieDetails.js';
+import tvDetailsRoutes from './routes/tvDetails.js';
 import personDetailsRoutes from './routes/personDetails.js';
 import discoverRoutes from './routes/discover.js';
+import tvDiscoverRoutes from './routes/tvDiscover.js';
 import radarrRoutes from './routes/radarr.js';
+import sonarrRoutes from './routes/sonarr.js';
 import { startScheduler } from './services/scheduler.js';
 
 // Load environment variables
@@ -41,11 +45,15 @@ app.use('/api/dev/user_dislike', userDislikeRoutes);
 app.use('/api/dev/refresh_tmdb', tmdbRoutes);
 app.use('/api/rss', rssRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/search', tvSearchRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/movies', movieDetailsRoutes);
+app.use('/api/tv', tvDetailsRoutes);
 app.use('/api/persons', personDetailsRoutes);
 app.use('/api/discover', discoverRoutes);
+app.use('/api/discover', tvDiscoverRoutes);
 app.use('/api/radarr', radarrRoutes);
+app.use('/api/sonarr', sonarrRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

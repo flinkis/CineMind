@@ -212,11 +212,25 @@ export async function addMovieToRadarr(tmdbId, options = {}) {
       }
     );
 
+    const addedMovie = addResponse.data;
+
+    // If requested, search for the movie after adding (if it wasn't already searched via addOptions)
+    let searchCommand = null;
+    if (options.searchForMovieAfterAdd && !options.searchForMovie) {
+      try {
+        searchCommand = await searchMovie(addedMovie.id);
+      } catch (error) {
+        // Log but don't fail the add operation if search fails
+        console.warn('Failed to search for movie after adding:', error.message);
+      }
+    }
+
     return {
       success: true,
       message: 'Movie added to Radarr successfully',
-      movie: addResponse.data,
+      movie: addedMovie,
       alreadyExists: false,
+      searchCommand: searchCommand,
     };
   } catch (error) {
     console.error('Radarr add movie error:', error.message);
@@ -246,5 +260,115 @@ export async function addMovieToRadarr(tmdbId, options = {}) {
  */
 export function isRadarrConfigured() {
   return !!(RADARR_API_KEY && RADARR_BASE_URL);
+}
+
+/**
+ * Search for a movie in Radarr
+ * Uses Radarr's command API to trigger a search
+ * @param {number} movieId - Radarr movie ID
+ */
+export async function searchMovie(movieId) {
+  try {
+    if (!RADARR_API_KEY || !RADARR_BASE_URL) {
+      throw new Error('Radarr is not configured. Please set RADARR_API_KEY and RADARR_BASE_URL in environment variables.');
+    }
+
+    const baseUrl = RADARR_BASE_URL.replace(/\/$/, '');
+    const response = await axios.post(
+      `${baseUrl}/api/v3/command`,
+      {
+        name: 'MoviesSearch',
+        movieIds: [movieId],
+      },
+      {
+        headers: {
+          'X-Api-Key': RADARR_API_KEY,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    return {
+      success: true,
+      message: 'Search for movie initiated',
+      command: response.data,
+    };
+  } catch (error) {
+    console.error('Radarr search movie error:', error.message);
+    if (error.response) {
+      throw new Error(`Radarr API error: ${error.response.data?.message || error.message}`);
+    }
+    throw new Error(`Failed to search for movie: ${error.message}`);
+  }
+}
+
+/**
+ * Get missing movies (wanted/missing)
+ * @param {Object} params - Query parameters (page, pageSize, sortKey, sortDirection, etc.)
+ */
+export async function getMissingMovies(params = {}) {
+  try {
+    if (!RADARR_API_KEY || !RADARR_BASE_URL) {
+      throw new Error('Radarr is not configured. Please set RADARR_API_KEY and RADARR_BASE_URL in environment variables.');
+    }
+
+    const baseUrl = RADARR_BASE_URL.replace(/\/$/, '');
+    const response = await axios.get(
+      `${baseUrl}/api/v3/wanted/missing`,
+      {
+        params: {
+          page: params.page || 1,
+          pageSize: params.pageSize || 10,
+          sortKey: params.sortKey || 'physicalRelease',
+          sortDirection: params.sortDirection || 'descending',
+          ...params,
+        },
+        headers: {
+          'X-Api-Key': RADARR_API_KEY,
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error('Radarr get missing movies error:', error.message);
+    if (error.response) {
+      throw new Error(`Radarr API error: ${error.response.data?.message || error.message}`);
+    }
+    throw new Error(`Failed to get missing movies: ${error.message}`);
+  }
+}
+
+/**
+ * Get Radarr movie by TMDB ID
+ * @param {number} tmdbId - TMDB ID of the movie
+ */
+export async function getMovieByTmdbId(tmdbId) {
+  try {
+    if (!RADARR_API_KEY || !RADARR_BASE_URL) {
+      throw new Error('Radarr is not configured. Please set RADARR_API_KEY and RADARR_BASE_URL in environment variables.');
+    }
+
+    const baseUrl = RADARR_BASE_URL.replace(/\/$/, '');
+    const response = await axios.get(
+      `${baseUrl}/api/v3/movie`,
+      {
+        headers: {
+          'X-Api-Key': RADARR_API_KEY,
+        },
+      }
+    );
+
+    const movies = Array.isArray(response.data) ? response.data : [];
+    const foundMovie = movies.find(m => m.tmdbId === tmdbId);
+    
+    return foundMovie || null;
+  } catch (error) {
+    console.error('Radarr get movie error:', error.message);
+    if (error.response) {
+      throw new Error(`Radarr API error: ${error.response.data?.message || error.message}`);
+    }
+    throw new Error(`Failed to get movie: ${error.message}`);
+  }
 }
 

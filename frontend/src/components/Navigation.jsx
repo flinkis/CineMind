@@ -65,7 +65,13 @@ function Navigation() {
         <Logo to="/">CineMind</Logo>
         <NavLinks>
           <NavLink to="/" $active={location.pathname === '/'}>
-            Discover
+            Movies
+          </NavLink>
+          <NavLink
+            to="/tv-shows"
+            $active={location.pathname === '/tv-shows'}
+          >
+            TV Shows
           </NavLink>
           <NavLink
             to="/recommendations"
@@ -80,4 +86,3 @@ function Navigation() {
 }
 
 export default Navigation;
-

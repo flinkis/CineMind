@@ -199,6 +199,13 @@ function MovieCard({
     e.stopPropagation(); // Prevent card click when clicking like button
     if (liking || disliking || !tmdbId) return;
     
+    // Only allow liking/disliking movies, not TV shows
+    const type = movie.type || 'movie';
+    if (type === 'tv') {
+      console.warn('Like/dislike functionality is only available for movies');
+      return;
+    }
+    
     setLiking(true);
     try {
       if (isLiked) {
@@ -225,6 +232,13 @@ function MovieCard({
     e.stopPropagation(); // Prevent card click when clicking dislike button
     if (liking || disliking || !tmdbId) return;
     
+    // Only allow liking/disliking movies, not TV shows
+    const type = movie.type || 'movie';
+    if (type === 'tv') {
+      console.warn('Like/dislike functionality is only available for movies');
+      return;
+    }
+    
     setDisliking(true);
     try {
       if (isDisliked) {
@@ -249,8 +263,9 @@ function MovieCard({
 
   const handleCardClick = () => {
     const tmdbId = movie.tmdbId || movie.id;
+    const type = movie.type || 'movie'; // Default to 'movie', can be 'tv'
     if (tmdbId) {
-      navigate(`/movie/${tmdbId}`);
+      navigate(type === 'tv' ? `/tv/${tmdbId}` : `/movie/${tmdbId}`);
     }
   };
 
@@ -282,7 +297,7 @@ function MovieCard({
         ) : (
           <PlaceholderPoster>No Poster</PlaceholderPoster>
         )}
-        {showActions && (
+        {showActions && (movie.type || 'movie') === 'movie' && (
           <>
             <DislikeButton
               $disliked={isDisliked}

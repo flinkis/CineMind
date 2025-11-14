@@ -232,6 +232,7 @@ function PersonDetailPage() {
     const [person, setPerson] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [activeCategory, setActiveCategory] = useState('movies'); // 'movies' or 'tv'
     const [activeTab, setActiveTab] = useState('knownFor'); // 'knownFor', 'topRated', 'all'
 
     useEffect(() => {
@@ -311,17 +312,30 @@ function PersonDetailPage() {
         );
     }
 
-    // Get movies to display based on active tab
-    const getMoviesToDisplay = () => {
-        switch (activeTab) {
-            case 'knownFor':
-                return person.knownForMovies || [];
-            case 'topRated':
-                return person.topRatedMovies || [];
-            case 'all':
-                return person.movies || [];
-            default:
-                return person.knownForMovies || [];
+    // Get movies or TV shows to display based on active category and tab
+    const getItemsToDisplay = () => {
+        if (activeCategory === 'tv') {
+            switch (activeTab) {
+                case 'knownFor':
+                    return person.knownForTVShows || [];
+                case 'topRated':
+                    return person.topRatedTVShows || [];
+                case 'all':
+                    return person.tvShows || [];
+                default:
+                    return person.knownForTVShows || [];
+            }
+        } else {
+            switch (activeTab) {
+                case 'knownFor':
+                    return person.knownForMovies || [];
+                case 'topRated':
+                    return person.topRatedMovies || [];
+                case 'all':
+                    return person.movies || [];
+                default:
+                    return person.knownForMovies || [];
+            }
         }
     };
 
@@ -398,16 +412,22 @@ function PersonDetailPage() {
                             <StatValue>{person.totalMovies}</StatValue>
                         </Stat>
                     )}
-                    {person.castCount > 0 && (
+                    {person.totalTVShows > 0 && (
                         <Stat>
-                            <StatLabel>As Actor</StatLabel>
-                            <StatValue>{person.castCount}</StatValue>
+                            <StatLabel>Total TV Shows</StatLabel>
+                            <StatValue>{person.totalTVShows}</StatValue>
                         </Stat>
                     )}
-                    {person.crewCount > 0 && (
+                    {(person.castCount > 0 || person.castTVCount > 0) && (
+                        <Stat>
+                            <StatLabel>As Actor</StatLabel>
+                            <StatValue>{person.castCount + (person.castTVCount || 0)}</StatValue>
+                        </Stat>
+                    )}
+                    {(person.crewCount > 0 || person.crewTVCount > 0) && (
                         <Stat>
                             <StatLabel>As Crew</StatLabel>
-                            <StatValue>{person.crewCount}</StatValue>
+                            <StatValue>{person.crewCount + (person.crewTVCount || 0)}</StatValue>
                         </Stat>
                     )}
                     {person.popularity > 0 && (
@@ -420,38 +440,71 @@ function PersonDetailPage() {
 
                 <Section>
                     <SectionTitle>Filmography</SectionTitle>
+                    
+                    {/* Category Tabs: Movies vs TV Shows */}
+                    <Tabs style={{ marginBottom: '1rem' }}>
+                        <Tab
+                            $active={activeCategory === 'movies'}
+                            onClick={() => {
+                                setActiveCategory('movies');
+                                setActiveTab('knownFor');
+                            }}
+                        >
+                            Movies ({person.totalMovies || 0})
+                        </Tab>
+                        <Tab
+                            $active={activeCategory === 'tv'}
+                            onClick={() => {
+                                setActiveCategory('tv');
+                                setActiveTab('knownFor');
+                            }}
+                        >
+                            TV Shows ({person.totalTVShows || 0})
+                        </Tab>
+                    </Tabs>
+
+                    {/* Sub-tabs: Known For, Top Rated, All */}
                     <Tabs>
                         <Tab
                             $active={activeTab === 'knownFor'}
                             onClick={() => setActiveTab('knownFor')}
                         >
-                            Known For ({person.knownForMovies?.length || 0})
+                            Known For ({activeCategory === 'movies' 
+                                ? (person.knownForMovies?.length || 0)
+                                : (person.knownForTVShows?.length || 0)})
                         </Tab>
                         <Tab
                             $active={activeTab === 'topRated'}
                             onClick={() => setActiveTab('topRated')}
                         >
-                            Top Rated ({person.topRatedMovies?.length || 0})
+                            Top Rated ({activeCategory === 'movies'
+                                ? (person.topRatedMovies?.length || 0)
+                                : (person.topRatedTVShows?.length || 0)})
                         </Tab>
                         <Tab
                             $active={activeTab === 'all'}
                             onClick={() => setActiveTab('all')}
                         >
-                            All Movies ({person.movies?.length || 0})
+                            All {activeCategory === 'movies' ? 'Movies' : 'TV Shows'} ({activeCategory === 'movies'
+                                ? (person.movies?.length || 0)
+                                : (person.tvShows?.length || 0)})
                         </Tab>
                     </Tabs>
-                    {getMoviesToDisplay().length > 0 ? (
+                    
+                    {getItemsToDisplay().length > 0 ? (
                         <MovieGrid>
-                            {getMoviesToDisplay().map((movie) => (
+                            {getItemsToDisplay().map((item) => (
                                 <MovieCard
-                                    key={movie.tmdbId}
-                                    movie={movie}
+                                    key={item.tmdbId}
+                                    movie={item}
                                     showScore={true}
                                 />
                             ))}
                         </MovieGrid>
                     ) : (
-                        <EmptyState>No movies found</EmptyState>
+                        <EmptyState>
+                            No {activeCategory === 'movies' ? 'movies' : 'TV shows'} found
+                        </EmptyState>
                     )}
                 </Section>
             </Content>

@@ -1,6 +1,12 @@
 import express from 'express';
 import axios from 'axios';
-import { addMovieToRadarr, isRadarrConfigured } from '../services/radarr.js';
+import {
+  addMovieToRadarr,
+  isRadarrConfigured,
+  searchMovie,
+  getMissingMovies,
+  getMovieByTmdbId,
+} from '../services/radarr.js';
 
 const router = express.Router();
 
@@ -15,7 +21,8 @@ const router = express.Router();
  * - qualityProfileId: Quality profile ID (defaults to first available)
  * - rootFolderPath: Root folder path (defaults to first available)
  * - monitored: Whether to monitor the movie (default: true)
- * - searchForMovie: Whether to search for the movie immediately (default: false)
+ * - searchForMovie: Whether to search for the movie immediately via addOptions (default: false)
+ * - searchForMovieAfterAdd: Whether to search for the movie after adding (default: false, only used if searchForMovie is false)
  */
 router.post('/add/:tmdbId', async (req, res, next) => {
   try {
@@ -37,6 +44,7 @@ router.post('/add/:tmdbId', async (req, res, next) => {
       rootFolderPath: req.body.rootFolderPath,
       monitored: req.body.monitored !== undefined ? req.body.monitored : true,
       searchForMovie: req.body.searchForMovie !== undefined ? req.body.searchForMovie : false,
+      searchForMovieAfterAdd: req.body.searchForMovieAfterAdd !== undefined ? req.body.searchForMovieAfterAdd : false,
     };
 
     const result = await addMovieToRadarr(tmdbId, options);
@@ -98,6 +106,80 @@ router.get('/status', async (req, res, next) => {
         error: error.message,
       });
     }
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/radarr/search/:tmdbId
+ * Search for a movie in Radarr
+ * 
+ * Params:
+ * - tmdbId: TMDB ID of the movie
+ */
+router.post('/search/:tmdbId', async (req, res, next) => {
+  try {
+    if (!isRadarrConfigured()) {
+      return res.status(503).json({
+        error: 'Radarr is not configured',
+        message: 'Please set RADARR_API_KEY and RADARR_BASE_URL in environment variables',
+      });
+    }
+
+    const tmdbId = parseInt(req.params.tmdbId);
+
+    if (!tmdbId || isNaN(tmdbId)) {
+      return res.status(400).json({ error: 'Invalid TMDB ID' });
+    }
+
+    // First, get the movie to find its Radarr ID
+    const movie = await getMovieByTmdbId(tmdbId);
+    
+    if (!movie || !movie.id) {
+      return res.status(404).json({
+        error: 'Movie not found in Radarr',
+        message: `Movie with TMDB ID ${tmdbId} is not added to Radarr yet. Add it first using POST /api/radarr/add/:tmdbId`,
+      });
+    }
+
+    const result = await searchMovie(movie.id);
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/radarr/wanted/missing
+ * Get list of missing movies
+ * 
+ * Query params:
+ * - page: Page number (default: 1)
+ * - pageSize: Items per page (default: 10)
+ * - sortKey: Sort key (default: 'physicalRelease')
+ * - sortDirection: Sort direction 'ascending' or 'descending' (default: 'descending')
+ */
+router.get('/wanted/missing', async (req, res, next) => {
+  try {
+    if (!isRadarrConfigured()) {
+      return res.status(503).json({
+        error: 'Radarr is not configured',
+        message: 'Please set RADARR_API_KEY and RADARR_BASE_URL in environment variables',
+      });
+    }
+
+    const params = {
+      page: parseInt(req.query.page) || 1,
+      pageSize: parseInt(req.query.pageSize) || 10,
+      sortKey: req.query.sortKey || 'physicalRelease',
+      sortDirection: req.query.sortDirection || 'descending',
+    };
+
+    const result = await getMissingMovies(params);
+
+    res.json(result);
   } catch (error) {
     next(error);
   }

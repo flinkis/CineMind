@@ -12,7 +12,8 @@ const router = express.Router();
  * Returns:
  * - Full person details
  * - Movies they worked on (as cast and crew)
- * - Top rated movies they are known for
+ * - TV shows they worked on (as cast and crew)
+ * - Top rated movies/TV shows they are known for
  * - External IDs (IMDB, etc.)
  */
 router.get('/:personId', async (req, res, next) => {
@@ -33,11 +34,24 @@ router.get('/:personId', async (req, res, next) => {
     const castMovies = personDetails.movie_credits?.cast || [];
     const crewMovies = personDetails.movie_credits?.crew || [];
 
+    // Get all TV shows (cast + crew)
+    const castTVShows = personDetails.tv_credits?.cast || [];
+    const crewTVShows = personDetails.tv_credits?.crew || [];
+
     // Combine and deduplicate movies
     const allMovies = [...castMovies, ...crewMovies];
     const uniqueMovies = allMovies.reduce((acc, movie) => {
       if (!acc.find((m) => m.id === movie.id)) {
         acc.push(movie);
+      }
+      return acc;
+    }, []);
+
+    // Combine and deduplicate TV shows
+    const allTVShows = [...castTVShows, ...crewTVShows];
+    const uniqueTVShows = allTVShows.reduce((acc, tv) => {
+      if (!acc.find((t) => t.id === tv.id)) {
+        acc.push(tv);
       }
       return acc;
     }, []);
@@ -95,6 +109,55 @@ router.get('/:personId', async (req, res, next) => {
       .sort((a, b) => b.popularity - a.popularity)
       .slice(0, 10);
 
+    // Format TV shows with role information
+    const tvShows = uniqueTVShows.map((tv) => {
+      const castRole = castTVShows.find((t) => t.id === tv.id);
+      const crewRole = crewTVShows.find((t) => t.id === tv.id);
+
+      return {
+        id: tv.id,
+        tmdbId: tv.id,
+        title: tv.name,
+        type: 'tv',
+        overview: tv.overview || '',
+        posterPath: tv.poster_path
+          ? `https://image.tmdb.org/t/p/w500${tv.poster_path}`
+          : null,
+        releaseDate: tv.first_air_date || null,
+        firstAirDate: tv.first_air_date || null,
+        voteAverage: tv.vote_average || 0,
+        voteCount: tv.vote_count || 0,
+        popularity: tv.popularity || 0,
+        character: castRole?.character || null,
+        job: crewRole?.job || null,
+        department: crewRole?.department || null,
+        role: castRole
+          ? `Actor - ${castRole.character}`
+          : crewRole
+          ? `${crewRole.job}${crewRole.department ? ` (${crewRole.department})` : ''}`
+          : null,
+      };
+    });
+
+    // Sort TV shows by first air date (newest first)
+    tvShows.sort((a, b) => {
+      if (!a.firstAirDate) return 1;
+      if (!b.firstAirDate) return -1;
+      return new Date(b.firstAirDate) - new Date(a.firstAirDate);
+    });
+
+    // Get top rated TV shows (rated 7.0 or higher, sorted by vote average)
+    const topRatedTVShows = tvShows
+      .filter((tv) => tv.voteAverage >= 7.0 && tv.voteCount >= 100)
+      .sort((a, b) => b.voteAverage - a.voteAverage)
+      .slice(0, 10);
+
+    // Get known for TV shows (top popular TV shows)
+    const knownForTVShows = tvShows
+      .filter((tv) => tv.popularity > 0 && tv.voteCount >= 50)
+      .sort((a, b) => b.popularity - a.popularity)
+      .slice(0, 10);
+
     // Format response
     const response = {
       id: personDetails.id,
@@ -117,9 +180,15 @@ router.get('/:personId', async (req, res, next) => {
       movies: moviesWithPreferences,
       topRatedMovies,
       knownForMovies,
+      tvShows,
+      topRatedTVShows,
+      knownForTVShows,
       castCount: castMovies.length,
       crewCount: crewMovies.length,
       totalMovies: uniqueMovies.length,
+      castTVCount: castTVShows.length,
+      crewTVCount: crewTVShows.length,
+      totalTVShows: uniqueTVShows.length,
     };
 
     res.json(response);
