@@ -34,15 +34,22 @@ const SearchContainer = styled.div`
   margin-bottom: ${(props) => props.theme.spacing.xl};
 `;
 
+const SearchInputWrapper = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+`;
+
 const SearchInput = styled.input`
   width: 100%;
   padding: ${(props) => props.theme.spacing.md};
+  padding-right: ${(props) => props.$hasValue ? '3rem' : props.theme.spacing.md};
   font-size: ${(props) => props.theme.fontSizes.md};
   background: ${(props) => props.theme.colors.surface};
   border: 2px solid ${(props) => props.theme.colors.border};
   border-radius: ${(props) => props.theme.borderRadius.md};
   color: ${(props) => props.theme.colors.text};
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, padding-right 0.2s;
 
   &:focus {
     outline: none;
@@ -51,6 +58,43 @@ const SearchInput = styled.input`
 
   &::placeholder {
     color: ${(props) => props.theme.colors.textMuted};
+  }
+`;
+
+const ClearButton = styled.button`
+  position: absolute;
+  right: ${(props) => props.theme.spacing.sm};
+  top: 50%;
+  transform: translateY(-50%);
+  background: ${(props) => props.theme.colors.surfaceLight};
+  border: none;
+  border-radius: ${(props) => props.theme.borderRadius.full};
+  color: ${(props) => props.theme.colors.textSecondary};
+  cursor: pointer;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: ${(props) => props.theme.fontSizes.lg};
+  line-height: 1;
+  transition: all 0.2s;
+  padding: 0;
+  font-weight: 600;
+
+  &:hover {
+    background: ${(props) => props.theme.colors.surfaceLight};
+    color: ${(props) => props.theme.colors.text};
+    transform: translateY(-50%) scale(1.1);
+  }
+
+  &:active {
+    transform: translateY(-50%) scale(0.95);
+  }
+
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px ${(props) => props.theme.colors.primary};
   }
 `;
 
@@ -243,7 +287,6 @@ function HomePage() {
   const [error, setError] = useState(null);
   const [searchTotalPages, setSearchTotalPages] = useState(1);
   const [searchTotalResults, setSearchTotalResults] = useState(0);
-  const [prevSearchQuery, setPrevSearchQuery] = useState(() => searchParams.get('q') || '');
   const [discoveryMovies, setDiscoveryMovies] = useState([]);
   const [loadingDiscovery, setLoadingDiscovery] = useState(true);
   const [totalPages, setTotalPages] = useState(1);
@@ -340,13 +383,26 @@ function HomePage() {
 
   // Handle search change
   const handleSearchChange = (value) => {
+    // If the search query is changing to a different value, reset to page 1
+    // This prevents being on an invalid page (e.g., page 5 when new search only has 2 pages)
+    if (value.trim() !== searchQuery.trim()) {
+      setSearchPage(1);
+    }
     setSearchQuery(value);
     if (!value.trim()) {
       setMovies([]);
-      setSearchPage(1);
       setSearchTotalPages(1);
       setSearchTotalResults(0);
     }
+  };
+
+  // Handle clear search
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setSearchPage(1);
+    setMovies([]);
+    setSearchTotalPages(1);
+    setSearchTotalResults(0);
   };
 
   // Handle search page change
@@ -579,12 +635,25 @@ function HomePage() {
 
       <SearchContainer>
         <form onSubmit={handleSearch}>
-          <SearchInput
-            type="text"
-            placeholder="Search for a movie..."
-            value={searchQuery}
-            onChange={(e) => handleSearchChange(e.target.value)}
-          />
+          <SearchInputWrapper>
+            <SearchInput
+              type="text"
+              placeholder="Search for a movie..."
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              $hasValue={!!searchQuery.trim()}
+            />
+            {searchQuery.trim() && (
+              <ClearButton
+                type="button"
+                onClick={handleClearSearch}
+                aria-label="Clear search"
+                title="Clear search"
+              >
+                ×
+              </ClearButton>
+            )}
+          </SearchInputWrapper>
         </form>
       </SearchContainer>
 

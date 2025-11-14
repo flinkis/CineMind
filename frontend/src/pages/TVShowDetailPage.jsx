@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import axios from 'axios';
@@ -687,151 +687,232 @@ const MatchScoreValue = styled(StatValue)`
   font-size: ${(props) => props.theme.fontSizes.xl};
 `;
 
-function MovieDetailPage() {
+// Modal styles for season selection
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: ${(props) => props.theme.spacing.xl};
+`;
+
+const ModalContent = styled.div`
+  background: ${(props) => props.theme.colors.background};
+  border-radius: ${(props) => props.theme.borderRadius.lg};
+  padding: ${(props) => props.theme.spacing.xl};
+  max-width: 600px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: ${(props) => props.theme.shadows.xl};
+`;
+
+const ModalHeader = styled.div`
+  margin-bottom: ${(props) => props.theme.spacing.lg};
+`;
+
+const ModalTitle = styled.h2`
+  font-size: ${(props) => props.theme.fontSizes.xl};
+  font-weight: 600;
+  color: ${(props) => props.theme.colors.text};
+  margin: 0 0 ${(props) => props.theme.spacing.sm} 0;
+`;
+
+const ModalDescription = styled.p`
+  font-size: ${(props) => props.theme.fontSizes.sm};
+  color: ${(props) => props.theme.colors.textSecondary};
+  margin: 0;
+`;
+
+const SeasonsList = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: ${(props) => props.theme.spacing.md};
+  margin-bottom: ${(props) => props.theme.spacing.lg};
+  max-height: 500px;
+  overflow-y: auto;
+  padding: ${(props) => props.theme.spacing.sm};
+`;
+
+const SeasonItem = styled.label`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: ${(props) => props.theme.spacing.sm};
+  background: ${(props) => props.theme.colors.surface};
+  border: 2px solid ${(props) => props.$selected ? props.theme.colors.primary : props.theme.colors.border};
+  border-radius: ${(props) => props.theme.borderRadius.md};
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+
+  &:hover {
+    background: ${(props) => props.theme.colors.surfaceLight};
+    border-color: ${(props) => props.theme.colors.primary};
+    transform: translateY(-2px);
+    box-shadow: ${(props) => props.theme.shadows.md};
+  }
+`;
+
+const SeasonCheckbox = styled.input`
+  position: absolute;
+  top: ${(props) => props.theme.spacing.xs};
+  right: ${(props) => props.theme.spacing.xs};
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: ${(props) => props.theme.colors.primary};
+  z-index: 1;
+`;
+
+const SeasonPoster = styled.img`
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  border-radius: ${(props) => props.theme.borderRadius.sm};
+  margin-bottom: ${(props) => props.theme.spacing.sm};
+`;
+
+const SeasonInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  text-align: center;
+`;
+
+const SeasonNumber = styled.div`
+  font-size: ${(props) => props.theme.fontSizes.md};
+  font-weight: 600;
+  color: ${(props) => props.theme.colors.text};
+  margin-bottom: ${(props) => props.theme.spacing.xs};
+`;
+
+const SeasonEpisodeCount = styled.div`
+  font-size: ${(props) => props.theme.fontSizes.sm};
+  color: ${(props) => props.theme.colors.textSecondary};
+`;
+
+const SeasonPlaceholder = styled.div`
+  width: 100%;
+  aspect-ratio: 2/3;
+  background: ${(props) => props.theme.colors.surfaceDark};
+  border-radius: ${(props) => props.theme.borderRadius.sm};
+  margin-bottom: ${(props) => props.theme.spacing.sm};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${(props) => props.theme.colors.textMuted};
+  font-size: ${(props) => props.theme.fontSizes.xs};
+`;
+
+const ModalActions = styled.div`
+  display: flex;
+  gap: ${(props) => props.theme.spacing.md};
+  justify-content: space-between;
+  flex-wrap: wrap;
+`;
+
+const QuickSelectButtons = styled.div`
+  display: flex;
+  gap: ${(props) => props.theme.spacing.sm};
+`;
+
+const QuickSelectButton = styled.button`
+  padding: ${(props) => props.theme.spacing.sm} ${(props) => props.theme.spacing.md};
+  background: ${(props) => props.theme.colors.surface};
+  border: 1px solid ${(props) => props.theme.colors.border};
+  border-radius: ${(props) => props.theme.borderRadius.md};
+  color: ${(props) => props.theme.colors.text};
+  font-size: ${(props) => props.theme.fontSizes.sm};
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: ${(props) => props.theme.colors.surfaceLight};
+    border-color: ${(props) => props.theme.colors.primary};
+  }
+`;
+
+const ModalButtonGroup = styled.div`
+  display: flex;
+  gap: ${(props) => props.theme.spacing.md};
+`;
+
+function TVShowDetailPage() {
   const { tmdbId } = useParams();
   const navigate = useNavigate();
-  const [movie, setMovie] = useState(null);
+  const [tvShow, setTVShow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isLiked, setIsLiked] = useState(false);
-  const [isDisliked, setIsDisliked] = useState(false);
-  const [liking, setLiking] = useState(false);
-  const [disliking, setDisliking] = useState(false);
-  const [likeError, setLikeError] = useState(null);
-  const [dislikeError, setDislikeError] = useState(null);
-  const [radarrConfigured, setRadarrConfigured] = useState(false);
-  const [addingToRadarr, setAddingToRadarr] = useState(false);
-  const [radarrError, setRadarrError] = useState(null);
-  const [radarrSuccess, setRadarrSuccess] = useState(null);
-  const [searchingInRadarr, setSearchingInRadarr] = useState(false);
-  const [movieInRadarr, setMovieInRadarr] = useState(false);
+  const [sonarrConfigured, setSonarrConfigured] = useState(false);
+  const [addingToSonarr, setAddingToSonarr] = useState(false);
+  const [sonarrError, setSonarrError] = useState(null);
+  const [sonarrSuccess, setSonarrSuccess] = useState(null);
+  const [searchingInSonarr, setSearchingInSonarr] = useState(false);
+  const [tvShowInSonarr, setTVShowInSonarr] = useState(false);
+  const [searchingSeason, setSearchingSeason] = useState(null);
+  const [showSeasonModal, setShowSeasonModal] = useState(false);
+  const [selectedSeasons, setSelectedSeasons] = useState(new Set());
+  const [pendingAutoSearch, setPendingAutoSearch] = useState(false);
 
   const handlePersonClick = (personId) => {
     navigate(`/person/${personId}`);
   };
 
-  const handleSimilarMovieClick = (tmdbId) => {
-    navigate(`/movie/${tmdbId}`);
+  const handleSimilarTVShowClick = (tmdbId) => {
+    navigate(`/tv/${tmdbId}`);
   };
 
   useEffect(() => {
-    const fetchMovieDetails = async () => {
+    const fetchTVShowDetails = async () => {
       try {
         setLoading(true);
         setError(null);
-        // Reset liked/disliked status when loading new movie
-        setIsLiked(false);
-        setIsDisliked(false);
-        setLikeError(null);
-        setDislikeError(null);
-        setRadarrError(null);
-        setRadarrSuccess(null);
-        // Reset Radarr state when loading new movie
-        setMovieInRadarr(false);
+        setSonarrError(null);
+        setSonarrSuccess(null);
+        // Reset Sonarr state when loading new TV show
+        setTVShowInSonarr(false);
 
-        const response = await axios.get(`/api/movies/${tmdbId}`);
-        setMovie(response.data);
-        // Update liked/disliked status from API response
-        setIsLiked(response.data.isLiked || false);
-        setIsDisliked(response.data.isDisliked || false);
+        const response = await axios.get(`/api/tv/${tmdbId}`);
+        setTVShow(response.data);
+        // Note: TV shows don't use the same like/dislike system as movies yet
+        // We can add this later if needed
       } catch (err) {
         setError(
           err.response?.data?.error ||
-          'Failed to load movie details. Please try again.'
+          'Failed to load TV show details. Please try again.'
         );
-        console.error('Movie details error:', err);
+        console.error('TV show details error:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    // Check if Radarr is configured
-    const checkRadarrStatus = async () => {
+    // Check if Sonarr is configured
+    const checkSonarrStatus = async () => {
       try {
-        const response = await axios.get('/api/radarr/status');
-        setRadarrConfigured(response.data.configured || false);
-        // Note: We'll determine if movie is in Radarr when user tries to add/search
+        const response = await axios.get('/api/sonarr/status');
+        setSonarrConfigured(response.data.configured || false);
+        // Note: We'll determine if TV show is in Sonarr when user tries to add/search
       } catch (err) {
-        // Silently fail - Radarr is optional
-        setRadarrConfigured(false);
+        // Silently fail - Sonarr is optional
+        setSonarrConfigured(false);
       }
     };
 
     if (tmdbId) {
-      fetchMovieDetails();
-      checkRadarrStatus();
+      fetchTVShowDetails();
+      checkSonarrStatus();
     }
   }, [tmdbId]);
 
-  // Handle like/unlike button
-  const handleLike = async () => {
-    if (liking || disliking || !tmdbId) return;
-
-    setLiking(true);
-    setLikeError(null);
-
-    try {
-      if (isLiked) {
-        // Unlike the movie
-        await axios.delete(`/api/dev/user_like/${tmdbId}`);
-        setIsLiked(false);
-      } else {
-        // Like the movie - remove from dislikes if it was disliked
-        if (isDisliked) {
-          await axios.delete(`/api/dev/user_dislike/${tmdbId}`);
-          setIsDisliked(false);
-        }
-        await axios.post('/api/dev/user_like', { tmdbId: parseInt(tmdbId) });
-        setIsLiked(true);
-      }
-    } catch (err) {
-      console.error('Like/Unlike error:', err);
-      const errorMessage = err.response?.data?.error || err.message || `Failed to ${isLiked ? 'unlike' : 'like'} movie`;
-      setLikeError(errorMessage);
-
-      // Format quota/billing errors
-      if (errorMessage.includes('quota') || errorMessage.includes('billing')) {
-        setLikeError('OpenAI API quota exceeded. Please check your billing at https://platform.openai.com/account/billing');
-      }
-    } finally {
-      setLiking(false);
-    }
-  };
-
-  // Handle dislike/undislike button
-  const handleDislike = async () => {
-    if (liking || disliking || !tmdbId) return;
-
-    setDisliking(true);
-    setDislikeError(null);
-
-    try {
-      if (isDisliked) {
-        // Undislike the movie
-        await axios.delete(`/api/dev/user_dislike/${tmdbId}`);
-        setIsDisliked(false);
-      } else {
-        // Dislike the movie - remove from likes if it was liked
-        if (isLiked) {
-          await axios.delete(`/api/dev/user_like/${tmdbId}`);
-          setIsLiked(false);
-        }
-        await axios.post('/api/dev/user_dislike', { tmdbId: parseInt(tmdbId) });
-        setIsDisliked(true);
-      }
-    } catch (err) {
-      console.error('Dislike/Undislike error:', err);
-      const errorMessage = err.response?.data?.error || err.message || `Failed to ${isDisliked ? 'undislike' : 'dislike'} movie`;
-      setDislikeError(errorMessage);
-
-      // Format quota/billing errors
-      if (errorMessage.includes('quota') || errorMessage.includes('billing')) {
-        setDislikeError('OpenAI API quota exceeded. Please check your billing at https://platform.openai.com/account/billing');
-      }
-    } finally {
-      setDisliking(false);
-    }
-  };
 
   const formatRuntime = (minutes) => {
     if (!minutes) return 'N/A';
@@ -849,60 +930,151 @@ function MovieDetailPage() {
     }).format(amount);
   };
 
-  // Handle adding movie to Radarr
-  const handleAddToRadarr = async (autoSearch = false) => {
-    if (addingToRadarr || !tmdbId) return;
+  // Handle opening season selection modal
+  const handleOpenSeasonModal = (autoSearch = false) => {
+    if (!tvShow || !tvShow.seasons || tvShow.seasons.length === 0) {
+      // If no seasons data, just add directly
+      handleAddToSonarr(autoSearch, []);
+      return;
+    }
 
-    setAddingToRadarr(true);
-    setRadarrError(null);
-    setRadarrSuccess(null);
+    setPendingAutoSearch(autoSearch);
+    // Initialize with all seasons selected by default
+    const allSeasons = new Set(tvShow.seasons.map(s => s.seasonNumber));
+    setSelectedSeasons(allSeasons);
+    setShowSeasonModal(true);
+  };
+
+  // Handle season checkbox change
+  const handleSeasonToggle = (seasonNumber) => {
+    setSelectedSeasons(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(seasonNumber)) {
+        newSet.delete(seasonNumber);
+      } else {
+        newSet.add(seasonNumber);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle select all seasons
+  const handleSelectAllSeasons = () => {
+    if (!tvShow || !tvShow.seasons) return;
+    const allSeasons = new Set(tvShow.seasons.map(s => s.seasonNumber));
+    setSelectedSeasons(allSeasons);
+  };
+
+  // Handle deselect all seasons
+  const handleDeselectAllSeasons = () => {
+    setSelectedSeasons(new Set());
+  };
+
+  // Handle closing modal
+  const handleCloseModal = () => {
+    setShowSeasonModal(false);
+    setSelectedSeasons(new Set());
+    setPendingAutoSearch(false);
+  };
+
+  // Handle adding TV show to Sonarr with selected seasons
+  const handleAddToSonarr = async (autoSearch = false, seasonNumbers = null) => {
+    if (addingToSonarr || !tmdbId) return;
+
+    setAddingToSonarr(true);
+    setSonarrError(null);
+    setSonarrSuccess(null);
+    setShowSeasonModal(false);
 
     try {
-      const response = await axios.post(`/api/radarr/add/${tmdbId}`, {
-        searchForMovieAfterAdd: autoSearch,
-      });
-      if (response.data.alreadyExists) {
-        setRadarrSuccess('Movie already exists in Radarr');
-        setMovieInRadarr(true);
-      } else {
-        let message = 'Movie added to Radarr successfully!';
-        if (response.data.searchCommand) {
-          message += ' Search for movie initiated.';
-        }
-        setRadarrSuccess(message);
-        setMovieInRadarr(true);
+      const payload = {
+        searchForMissingEpisodesAfterAdd: autoSearch,
+      };
+
+      // If season numbers are provided, include them in the payload
+      if (seasonNumbers !== null && Array.isArray(seasonNumbers)) {
+        payload.seasonNumbers = Array.from(seasonNumbers);
+      } else if (seasonNumbers === null && selectedSeasons.size > 0) {
+        // Use currently selected seasons from modal
+        payload.seasonNumbers = Array.from(selectedSeasons);
       }
+
+      const response = await axios.post(`/api/sonarr/add/${tmdbId}`, payload);
+      if (response.data.alreadyExists) {
+        setSonarrSuccess('TV show already exists in Sonarr');
+        setTVShowInSonarr(true);
+      } else {
+        let message = 'TV show added to Sonarr successfully!';
+        if (response.data.searchCommand) {
+          message += ' Search for missing episodes initiated.';
+        }
+        setSonarrSuccess(message);
+        setTVShowInSonarr(true);
+      }
+
+      // Clear modal state
+      setSelectedSeasons(new Set());
+      setPendingAutoSearch(false);
     } catch (err) {
-      console.error('Add to Radarr error:', err);
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to add movie to Radarr';
-      setRadarrError(errorMessage);
+      console.error('Add to Sonarr error:', err);
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to add TV show to Sonarr';
+      setSonarrError(errorMessage);
     } finally {
-      setAddingToRadarr(false);
+      setAddingToSonarr(false);
     }
   };
 
-  // Handle searching for movie in Radarr
-  const handleSearchInRadarr = async () => {
-    if (searchingInRadarr || !tmdbId) return;
+  // Handle confirming season selection
+  const handleConfirmSeasonSelection = () => {
+    if (selectedSeasons.size === 0) {
+      setSonarrError('Please select at least one season to add');
+      return;
+    }
+    handleAddToSonarr(pendingAutoSearch, Array.from(selectedSeasons));
+  };
 
-    setSearchingInRadarr(true);
-    setRadarrError(null);
-    setRadarrSuccess(null);
+  // Handle searching for missing episodes in Sonarr
+  const handleSearchInSonarr = async () => {
+    if (searchingInSonarr || !tmdbId) return;
+
+    setSearchingInSonarr(true);
+    setSonarrError(null);
+    setSonarrSuccess(null);
 
     try {
-      const response = await axios.post(`/api/radarr/search/${tmdbId}`);
-      setRadarrSuccess('Search for movie initiated! Radarr is now searching for available releases.');
+      const response = await axios.post(`/api/sonarr/search/series/${tmdbId}`);
+      setSonarrSuccess('Search for missing episodes initiated! Sonarr is now searching for available episodes.');
     } catch (err) {
-      console.error('Search in Radarr error:', err);
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to search for movie in Radarr';
-      setRadarrError(errorMessage);
+      console.error('Search in Sonarr error:', err);
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to search for TV show in Sonarr';
+      setSonarrError(errorMessage);
 
-      // If movie not found, suggest adding it first
+      // If TV show not found, suggest adding it first
       if (err.response?.status === 404) {
-        setMovieInRadarr(false);
+        setTVShowInSonarr(false);
       }
     } finally {
-      setSearchingInRadarr(false);
+      setSearchingInSonarr(false);
+    }
+  };
+
+  // Handle searching for missing episodes in a specific season
+  const handleSearchSeason = async (seasonNumber) => {
+    if (searchingSeason === seasonNumber || !tmdbId) return;
+
+    setSearchingSeason(seasonNumber);
+    setSonarrError(null);
+    setSonarrSuccess(null);
+
+    try {
+      const response = await axios.post(`/api/sonarr/search/season/${tmdbId}/${seasonNumber}`);
+      setSonarrSuccess(`Search for missing episodes in Season ${seasonNumber} initiated!`);
+    } catch (err) {
+      console.error('Search season error:', err);
+      const errorMessage = err.response?.data?.error || err.message || `Failed to search for Season ${seasonNumber}`;
+      setSonarrError(errorMessage);
+    } finally {
+      setSearchingSeason(null);
     }
   };
 
@@ -910,7 +1082,7 @@ function MovieDetailPage() {
     return (
       <Container>
         <Content>
-          <Loading>Loading movie details...</Loading>
+          <Loading>Loading TV show details...</Loading>
         </Content>
       </Container>
     );
@@ -921,18 +1093,18 @@ function MovieDetailPage() {
       <Container>
         <Content>
           <Error>{error}</Error>
-          <BackButton to="/">← Back to Discover</BackButton>
+          <BackButton to="/tv-shows">← Back to TV Shows</BackButton>
         </Content>
       </Container>
     );
   }
 
-  if (!movie) {
+  if (!tvShow) {
     return (
       <Container>
         <Content>
-          <Error>Movie not found</Error>
-          <BackButton to="/">← Back to Discover</BackButton>
+          <Error>TV show not found</Error>
+          <BackButton to="/tv-shows">← Back to TV Shows</BackButton>
         </Content>
       </Container>
     );
@@ -940,140 +1112,132 @@ function MovieDetailPage() {
 
   return (
     <Container>
-      {movie.backdropPath && <Backdrop $backdropUrl={movie.backdropPath} />}
+      {tvShow.backdropPath && <Backdrop $backdropUrl={tvShow.backdropPath} />}
       <Content>
-        <BackButton to="/">← Back to Discover</BackButton>
+        <BackButton to="/tv-shows">← Back to TV Shows</BackButton>
 
         <MainLayout>
           <MainContent>
             <Header>
-              {movie.posterPath ? (
-                <Poster src={movie.posterPath} alt={movie.title} />
+              {tvShow.posterPath ? (
+                <Poster src={tvShow.posterPath} alt={tvShow.title} />
               ) : (
                 <PlaceholderPoster>No Poster</PlaceholderPoster>
               )}
 
               <Info>
-                <Title>{movie.title}</Title>
-                {movie.tagline && <Tagline>{movie.tagline}</Tagline>}
+                <Title>{tvShow.title}</Title>
+                {tvShow.tagline && <Tagline>{tvShow.tagline}</Tagline>}
 
                 <Meta>
-                  {movie.releaseDate && (
+                  {tvShow.firstAirDate && (
                     <MetaItem>
-                      <strong>Release:</strong> {new Date(movie.releaseDate).getFullYear()}
+                      <strong>First Air:</strong> {new Date(tvShow.firstAirDate).getFullYear()}
                     </MetaItem>
                   )}
-                  {movie.runtime && (
+                  {tvShow.lastAirDate && (
                     <MetaItem>
-                      <strong>Runtime:</strong> {formatRuntime(movie.runtime)}
+                      <strong>Last Air:</strong> {new Date(tvShow.lastAirDate).getFullYear()}
                     </MetaItem>
                   )}
-                  {movie.voteAverage > 0 && (
+                  {tvShow.numberOfSeasons > 0 && (
                     <MetaItem>
-                      <strong>Rating:</strong> {movie.voteAverage.toFixed(1)}/10
+                      <strong>Seasons:</strong> {tvShow.numberOfSeasons}
+                    </MetaItem>
+                  )}
+                  {tvShow.numberOfEpisodes > 0 && (
+                    <MetaItem>
+                      <strong>Episodes:</strong> {tvShow.numberOfEpisodes}
+                    </MetaItem>
+                  )}
+                  {tvShow.episodeRunTime && tvShow.episodeRunTime.length > 0 && (
+                    <MetaItem>
+                      <strong>Runtime:</strong> {tvShow.episodeRunTime[0]} min
+                    </MetaItem>
+                  )}
+                  {tvShow.voteAverage > 0 && (
+                    <MetaItem>
+                      <strong>Rating:</strong> {tvShow.voteAverage.toFixed(1)}/10
+                    </MetaItem>
+                  )}
+                  {tvShow.status && (
+                    <MetaItem>
+                      <strong>Status:</strong> {tvShow.status}
                     </MetaItem>
                   )}
                 </Meta>
 
-                {movie.genres && movie.genres.length > 0 && (
+                {tvShow.genres && tvShow.genres.length > 0 && (
                   <Genres>
-                    {movie.genres.map((genre) => (
+                    {tvShow.genres.map((genre) => (
                       <Genre key={genre.id}>{genre.name}</Genre>
                     ))}
                   </Genres>
                 )}
 
-                {movie.overview && <Overview>{movie.overview}</Overview>}
+                {tvShow.overview && <Overview>{tvShow.overview}</Overview>}
 
                 <Actions>
-                  <LikeButton
-                    $liked={isLiked}
-                    onClick={handleLike}
-                    disabled={liking || disliking}
-                    aria-label={isLiked ? 'Remove from likes' : 'Add to likes'}
-                  >
-                    <HeartIcon filled={isLiked} size={16} />
-                    {liking ? (isLiked ? 'Unliking...' : 'Liking...') : (isLiked ? 'Unlike' : 'Like')}
-                  </LikeButton>
-                  <DislikeButton
-                    $disliked={isDisliked}
-                    onClick={handleDislike}
-                    disabled={liking || disliking}
-                    aria-label={isDisliked ? 'Remove from dislikes' : 'Add to dislikes'}
-                  >
-                    <ThumbsDownIcon filled={isDisliked} size={16} />
-                    {disliking ? (isDisliked ? 'Undisliking...' : 'Disliking...') : (isDisliked ? 'Undislike' : 'Dislike')}
-                  </DislikeButton>
-                  {movie.trailer && (
-                    <Button href={movie.trailer.youtubeUrl} target="_blank" rel="noopener noreferrer">
+                  {tvShow.trailer && (
+                    <Button href={tvShow.trailer.youtubeUrl} target="_blank" rel="noopener noreferrer">
                       ▶ Watch Trailer
                     </Button>
                   )}
-                  {movie.imdbUrl && (
-                    <SecondaryButton href={movie.imdbUrl} target="_blank" rel="noopener noreferrer">
+                  {tvShow.imdbUrl && (
+                    <SecondaryButton href={tvShow.imdbUrl} target="_blank" rel="noopener noreferrer">
                       IMDb
                     </SecondaryButton>
                   )}
-                  {movie.tmdbUrl && (
-                    <SecondaryButton href={movie.tmdbUrl} target="_blank" rel="noopener noreferrer">
+                  {tvShow.tmdbUrl && (
+                    <SecondaryButton href={tvShow.tmdbUrl} target="_blank" rel="noopener noreferrer">
                       TMDB
                     </SecondaryButton>
                   )}
-                  {movie.homepage && (
-                    <SecondaryButton href={movie.homepage} target="_blank" rel="noopener noreferrer">
+                  {tvShow.homepage && (
+                    <SecondaryButton href={tvShow.homepage} target="_blank" rel="noopener noreferrer">
                       Official Website
                     </SecondaryButton>
                   )}
-                  {radarrConfigured && (
+                  {sonarrConfigured && (
                     <>
-                      {!movieInRadarr ? (
+                      {!tvShowInSonarr ? (
                         <>
                           <SecondaryButton
-                            onClick={() => handleAddToRadarr(false)}
-                            disabled={addingToRadarr || searchingInRadarr}
+                            onClick={() => handleOpenSeasonModal(false)}
+                            disabled={addingToSonarr || searchingInSonarr}
                             as="button"
-                            style={{ cursor: (addingToRadarr || searchingInRadarr) ? 'not-allowed' : 'pointer' }}
+                            style={{ cursor: (addingToSonarr || searchingInSonarr) ? 'not-allowed' : 'pointer' }}
                           >
-                            {addingToRadarr ? 'Adding...' : '📥 Add to Radarr'}
+                            {addingToSonarr ? 'Adding...' : '📥 Add to Sonarr'}
                           </SecondaryButton>
                           <SecondaryButton
-                            onClick={() => handleAddToRadarr(true)}
-                            disabled={addingToRadarr || searchingInRadarr}
+                            onClick={() => handleOpenSeasonModal(true)}
+                            disabled={addingToSonarr || searchingInSonarr}
                             as="button"
-                            style={{ cursor: (addingToRadarr || searchingInRadarr) ? 'not-allowed' : 'pointer' }}
+                            style={{ cursor: (addingToSonarr || searchingInSonarr) ? 'not-allowed' : 'pointer' }}
                           >
-                            {addingToRadarr ? 'Adding...' : '📥 Add & Search'}
+                            {addingToSonarr ? 'Adding...' : '📥 Add & Search'}
                           </SecondaryButton>
                         </>
                       ) : (
                         <SecondaryButton
-                          onClick={handleSearchInRadarr}
-                          disabled={searchingInRadarr || addingToRadarr}
+                          onClick={handleSearchInSonarr}
+                          disabled={searchingInSonarr || addingToSonarr}
                           as="button"
-                          style={{ cursor: (searchingInRadarr || addingToRadarr) ? 'not-allowed' : 'pointer' }}
+                          style={{ cursor: (searchingInSonarr || addingToSonarr) ? 'not-allowed' : 'pointer' }}
                         >
-                          {searchingInRadarr ? 'Searching...' : '🔍 Search in Radarr'}
+                          {searchingInSonarr ? 'Searching...' : 'ðŸ” Search All Episodes'}
                         </SecondaryButton>
                       )}
                     </>
                   )}
                 </Actions>
-                {likeError && (
+                {sonarrError && (
                   <Error style={{ marginTop: '1rem', fontSize: '0.875rem' }}>
-                    {likeError}
+                    {sonarrError}
                   </Error>
                 )}
-                {dislikeError && (
-                  <Error style={{ marginTop: '1rem', fontSize: '0.875rem' }}>
-                    {dislikeError}
-                  </Error>
-                )}
-                {radarrError && (
-                  <Error style={{ marginTop: '1rem', fontSize: '0.875rem' }}>
-                    {radarrError}
-                  </Error>
-                )}
-                {radarrSuccess && (
+                {sonarrSuccess && (
                   <div style={{
                     marginTop: '1rem',
                     fontSize: '0.875rem',
@@ -1083,61 +1247,52 @@ function MovieDetailPage() {
                     borderRadius: '0.5rem',
                     border: '1px solid #10b981'
                   }}>
-                    {radarrSuccess}
+                    {sonarrSuccess}
                   </div>
                 )}
               </Info>
             </Header>
 
             <Stats>
-              {((movie.normalizedSimilarity !== undefined && movie.normalizedSimilarity !== null) ||
-                (movie.similarity !== undefined && movie.similarity !== null)) ? (
-                <Stat>
-                  <StatLabel>Match Score</StatLabel>
-                  <MatchScoreValue>
-                    {((movie.normalizedSimilarity !== undefined ? movie.normalizedSimilarity : movie.similarity) * 100).toFixed(1)}%
-                  </MatchScoreValue>
-                </Stat>
-              ) : null}
-              {movie.voteAverage > 0 && (
+              {tvShow.voteAverage > 0 && (
                 <Stat>
                   <StatLabel>Rating</StatLabel>
-                  <StatValue>{movie.voteAverage.toFixed(1)}/10</StatValue>
+                  <StatValue>{tvShow.voteAverage.toFixed(1)}/10</StatValue>
                 </Stat>
               )}
-              {movie.voteCount > 0 && (
+              {tvShow.voteCount > 0 && (
                 <Stat>
                   <StatLabel>Votes</StatLabel>
-                  <StatValue>{movie.voteCount.toLocaleString()}</StatValue>
+                  <StatValue>{tvShow.voteCount.toLocaleString()}</StatValue>
                 </Stat>
               )}
-              {movie.popularity > 0 && (
+              {tvShow.popularity > 0 && (
                 <Stat>
                   <StatLabel>Popularity</StatLabel>
-                  <StatValue>{movie.popularity.toFixed(0)}</StatValue>
+                  <StatValue>{tvShow.popularity.toFixed(0)}</StatValue>
                 </Stat>
               )}
-              {movie.budget > 0 && (
+              {tvShow.numberOfSeasons > 0 && (
                 <Stat>
-                  <StatLabel>Budget</StatLabel>
-                  <StatValue>{formatCurrency(movie.budget)}</StatValue>
+                  <StatLabel>Seasons</StatLabel>
+                  <StatValue>{tvShow.numberOfSeasons}</StatValue>
                 </Stat>
               )}
-              {movie.revenue > 0 && (
+              {tvShow.numberOfEpisodes > 0 && (
                 <Stat>
-                  <StatLabel>Revenue</StatLabel>
-                  <StatValue>{formatCurrency(movie.revenue)}</StatValue>
+                  <StatLabel>Episodes</StatLabel>
+                  <StatValue>{tvShow.numberOfEpisodes}</StatValue>
                 </Stat>
               )}
             </Stats>
 
-            {movie.trailer && (
+            {tvShow.trailer && (
               <TrailerSection>
                 <TrailerTitle>Trailer</TrailerTitle>
                 <TrailerContainer>
                   <TrailerIframe
-                    src={movie.trailer.youtubeEmbedUrl}
-                    title={movie.trailer.name}
+                    src={tvShow.trailer.youtubeEmbedUrl || `https://www.youtube.com/embed/${tvShow.trailer.key}`}
+                    title={tvShow.trailer.name}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                   />
@@ -1145,30 +1300,30 @@ function MovieDetailPage() {
               </TrailerSection>
             )}
 
-            {movie.director && (
-              <DirectorSection onClick={() => handlePersonClick(movie.director.id)}>
-                {movie.director.profilePath ? (
+            {tvShow.creators && tvShow.creators.length > 0 && (
+              <DirectorSection onClick={() => handlePersonClick(tvShow.creators[0].id)}>
+                {tvShow.creators[0].profilePath ? (
                   <DirectorPhoto
-                    src={movie.director.profilePath}
-                    alt={movie.director.name}
+                    src={tvShow.creators[0].profilePath}
+                    alt={tvShow.creators[0].name}
                   />
                 ) : (
                   <PlaceholderDirectorPhoto>
-                    {movie.director.name.charAt(0)}
+                    {tvShow.creators[0].name.charAt(0)}
                   </PlaceholderDirectorPhoto>
                 )}
                 <DirectorInfo>
-                  <DirectorLabel>Director</DirectorLabel>
-                  <DirectorName>{movie.director.name}</DirectorName>
+                  <DirectorLabel>Creator</DirectorLabel>
+                  <DirectorName>{tvShow.creators[0].name}</DirectorName>
                 </DirectorInfo>
               </DirectorSection>
             )}
 
-            {movie.writers && movie.writers.length > 0 && (
+            {tvShow.writers && tvShow.writers.length > 0 && (
               <WritersSection>
                 <SectionTitle>Writers</SectionTitle>
                 <WritersGrid>
-                  {movie.writers.map((writer) => (
+                  {tvShow.writers.map((writer) => (
                     <WriterCard
                       key={writer.id}
                       onClick={() => handlePersonClick(writer.id)}
@@ -1188,11 +1343,11 @@ function MovieDetailPage() {
               </WritersSection>
             )}
 
-            {movie.cast && movie.cast.length > 0 && (
+            {tvShow.cast && tvShow.cast.length > 0 && (
               <CastSection>
                 <SectionTitle>Cast</SectionTitle>
                 <CastGrid>
-                  {movie.cast.map((actor) => (
+                  {tvShow.cast.map((actor) => (
                     <CastCard
                       key={actor.id}
                       onClick={() => handlePersonClick(actor.id)}
@@ -1214,11 +1369,11 @@ function MovieDetailPage() {
               </CastSection>
             )}
 
-            {movie.productionCompanies && movie.productionCompanies.length > 0 && (
+            {tvShow.productionCompanies && tvShow.productionCompanies.length > 0 && (
               <ProductionSection>
                 <SectionTitle>Production Companies</SectionTitle>
                 <ProductionList>
-                  {movie.productionCompanies.map((company) => (
+                  {tvShow.productionCompanies.map((company) => (
                     <ProductionItem key={company.id}>{company.name}</ProductionItem>
                   ))}
                 </ProductionList>
@@ -1227,36 +1382,36 @@ function MovieDetailPage() {
           </MainContent>
 
           {/* Similar Movies Sidebar */}
-          {movie.similarMovies && movie.similarMovies.length > 0 && (
+          {tvShow.similarTVShows && tvShow.similarTVShows.length > 0 && (
             <Sidebar>
               <SimilarMoviesSection>
-                <SimilarMoviesTitle>Similar Movies</SimilarMoviesTitle>
-                {movie.similarMovies.map((similarMovie) => (
+                <SimilarMoviesTitle>Similar TV Shows</SimilarMoviesTitle>
+                {tvShow.similarTVShows.map((similarTVShow) => (
                   <SimilarMovieItem
-                    key={similarMovie.tmdbId}
-                    onClick={() => handleSimilarMovieClick(similarMovie.tmdbId)}
+                    key={similarTVShow.tmdbId}
+                    onClick={() => handleSimilarTVShowClick(similarTVShow.tmdbId)}
                   >
-                    {similarMovie.posterPath ? (
+                    {similarTVShow.posterPath ? (
                       <SimilarMoviePoster
-                        src={similarMovie.posterPath}
-                        alt={similarMovie.title}
+                        src={similarTVShow.posterPath}
+                        alt={similarTVShow.title}
                       />
                     ) : (
                       <PlaceholderSimilarPoster>
-                        {similarMovie.title.charAt(0)}
+                        {similarTVShow.title.charAt(0)}
                       </PlaceholderSimilarPoster>
                     )}
                     <SimilarMovieInfo>
-                      <SimilarMovieTitle>{similarMovie.title}</SimilarMovieTitle>
+                      <SimilarMovieTitle>{similarTVShow.title}</SimilarMovieTitle>
                       <SimilarMovieMeta>
-                        {similarMovie.releaseDate && (
-                          <span>{new Date(similarMovie.releaseDate).getFullYear()}</span>
+                        {similarTVShow.firstAirDate && (
+                          <span>{new Date(similarTVShow.firstAirDate).getFullYear()}</span>
                         )}
-                        {similarMovie.voteAverage > 0 && (
+                        {similarTVShow.voteAverage > 0 && (
                           <>
                             <span>•</span>
                             <SimilarMovieRating>
-                              {similarMovie.voteAverage.toFixed(1)}
+                              {similarTVShow.voteAverage.toFixed(1)}
                             </SimilarMovieRating>
                           </>
                         )}
@@ -1269,9 +1424,83 @@ function MovieDetailPage() {
           )}
         </MainLayout>
       </Content>
+
+      {/* Season Selection Modal */}
+      {showSeasonModal && tvShow && tvShow.seasons && (
+        <ModalOverlay onClick={handleCloseModal}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>Select Seasons to Add</ModalTitle>
+              <ModalDescription>
+                Choose which seasons of "{tvShow.title}" you want to add to Sonarr. Only selected seasons will be monitored.
+              </ModalDescription>
+            </ModalHeader>
+
+            <QuickSelectButtons>
+              <QuickSelectButton onClick={handleSelectAllSeasons}>
+                Select All
+              </QuickSelectButton>
+              <QuickSelectButton onClick={handleDeselectAllSeasons}>
+                Deselect All
+              </QuickSelectButton>
+            </QuickSelectButtons>
+
+            <SeasonsList>
+              {tvShow.seasons
+                .filter(season => season.seasonNumber >= 0) // Filter out specials (season 0) or include based on preference
+                .sort((a, b) => a.seasonNumber - b.seasonNumber)
+                .map((season) => (
+                  <SeasonItem
+                    key={season.id || season.seasonNumber}
+                    $selected={selectedSeasons.has(season.seasonNumber)}
+                  >
+                    <SeasonCheckbox
+                      type="checkbox"
+                      checked={selectedSeasons.has(season.seasonNumber)}
+                      onChange={() => handleSeasonToggle(season.seasonNumber)}
+                    />
+                    {season.posterPath ? (
+                      <SeasonPoster src={season.posterPath} alt={season.name || `Season ${season.seasonNumber}`} />
+                    ) : (
+                      <SeasonPlaceholder>
+                        No Poster
+                      </SeasonPlaceholder>
+                    )}
+                    <SeasonInfo>
+                      <SeasonNumber>
+                        Season {season.seasonNumber}
+                      </SeasonNumber>
+                      <SeasonEpisodeCount>
+                        {season.episodeCount} episode{season.episodeCount !== 1 ? 's' : ''}
+                      </SeasonEpisodeCount>
+                    </SeasonInfo>
+                  </SeasonItem>
+                ))}
+            </SeasonsList>
+
+            <ModalActions>
+              <ModalButtonGroup>
+                <SecondaryButton onClick={handleCloseModal} as="button">
+                  Cancel
+                </SecondaryButton>
+                <Button
+                  onClick={handleConfirmSeasonSelection}
+                  disabled={selectedSeasons.size === 0 || addingToSonarr}
+                  as="button"
+                  style={{ cursor: selectedSeasons.size === 0 || addingToSonarr ? 'not-allowed' : 'pointer' }}
+                >
+                  {addingToSonarr ? 'Adding...' : `Add ${selectedSeasons.size} Season${selectedSeasons.size !== 1 ? 's' : ''}`}
+                </Button>
+              </ModalButtonGroup>
+            </ModalActions>
+          </ModalContent>
+        </ModalOverlay>
+      )}
     </Container>
   );
 }
 
-export default MovieDetailPage;
+export default TVShowDetailPage;
+
+
 
