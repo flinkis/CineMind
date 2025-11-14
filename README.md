@@ -23,11 +23,41 @@ A personalized movie recommender system that learns your taste and finds both ex
 
 ### Prerequisites
 
-- Node.js (v18+)
+- Node.js (v18+) OR Docker & Docker Compose
 - TMDB API key ([Get one here](https://www.themoviedb.org/settings/api))
-- OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
+- OpenAI API key ([Get one here](https://platform.openai.com/api-keys)) (Optional)
 
-### Installation
+### Running with Docker (Recommended for NAS)
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd cinemind
+   ```
+
+2. **Create environment file:**
+   ```bash
+   cp backend/env.example .env
+   ```
+
+3. **Edit `.env` with your API keys:**
+   ```env
+   TMDB_API_KEY=your_tmdb_api_key_here
+   OPENAI_API_KEY=your_openai_api_key_here  # Optional
+   ```
+
+4. **Build and start containers:**
+   ```bash
+   docker-compose up -d
+   ```
+
+5. **Access the application:**
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:3001
+
+For detailed Docker documentation, see [DOCKER.md](./DOCKER.md).
+
+### Installation (Local Development)
 
 1. Clone the repository:
 
