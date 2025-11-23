@@ -3,6 +3,7 @@ import { searchMovies, formatMovieData } from '../services/tmdb.js';
 import { addMatchScoresToMovies } from '../services/matchScore.js';
 import { sortMovies } from '../services/movieSort.js';
 import { addUserPreferencesToMovies } from '../services/userPreferences.js';
+import { validateSearchQuery, validatePagination } from '../middleware/validation.js';
 
 const router = express.Router();
 
@@ -15,15 +16,11 @@ const router = express.Router();
  * - page: page number (default: 1)
  * - sort: sort option (default, rating-desc, rating-asc, release-desc, etc.)
  */
-router.get('/movies', async (req, res, next) => {
+router.get('/movies', validateSearchQuery, validatePagination, async (req, res, next) => {
   try {
-    const query = req.query.q;
-    const page = parseInt(req.query.page) || 1;
+    const query = req.validatedQuery;
+    const page = req.validatedPage || 1;
     const sortBy = req.query.sort || 'default';
-
-    if (!query) {
-      return res.status(400).json({ error: 'Search query is required' });
-    }
 
     const tmdbResponse = await searchMovies(query, page);
     const movies = (tmdbResponse.results || []).map(formatMovieData);

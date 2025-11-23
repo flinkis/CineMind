@@ -175,10 +175,50 @@ const Score = styled.span`
   font-weight: 600;
 `;
 
+const Explanation = styled.div`
+  margin-top: ${(props) => props.theme.spacing.sm};
+  padding-top: ${(props) => props.theme.spacing.sm};
+  border-top: 1px solid ${(props) => props.theme.colors.border};
+  font-size: ${(props) => props.theme.fontSizes.xs};
+`;
+
+const ExplanationTitle = styled.div`
+  color: ${(props) => props.theme.colors.textSecondary};
+  font-weight: 600;
+  margin-bottom: ${(props) => props.theme.spacing.xs};
+`;
+
+const SimilarMoviesList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${(props) => props.theme.spacing.xs};
+`;
+
+const SimilarMovie = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${(props) => props.theme.spacing.xs};
+  color: ${(props) => props.theme.colors.textSecondary};
+`;
+
+const SimilarMovieTitle = styled.span`
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const SimilarMovieScore = styled.span`
+  color: ${(props) => props.theme.colors.primary};
+  font-weight: 600;
+  font-size: ${(props) => props.theme.fontSizes.xxs};
+`;
+
 function MovieCard({ 
   movie, 
   showScore = false,
-  showActions = true
+  showActions = true,
+  showExplanation = false
 }) {
   const tmdbId = movie.tmdbId || movie.id;
   
@@ -328,6 +368,21 @@ function MovieCard({
           {/* Always show score if it exists (match score takes priority over vote average) */}
           {score && <Score>{score}</Score>}
         </Meta>
+        {showExplanation && movie.similarLikedMovies && movie.similarLikedMovies.length > 0 && (
+          <Explanation>
+            <ExplanationTitle>Similar to movies you liked:</ExplanationTitle>
+            <SimilarMoviesList>
+              {movie.similarLikedMovies.slice(0, 3).map((similarMovie, index) => (
+                <SimilarMovie key={similarMovie.tmdbId || index}>
+                  <SimilarMovieTitle>{similarMovie.title}</SimilarMovieTitle>
+                  <SimilarMovieScore>
+                    {((similarMovie.similarity || 0) * 100).toFixed(0)}%
+                  </SimilarMovieScore>
+                </SimilarMovie>
+              ))}
+            </SimilarMoviesList>
+          </Explanation>
+        )}
       </CardContent>
     </Card>
   );

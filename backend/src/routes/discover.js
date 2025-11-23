@@ -6,12 +6,26 @@ import {
   getUpcomingMovies,
   formatMovieData,
   mapSortToTmdbSortBy,
+  getMovieGenres,
 } from '../services/tmdb.js';
 import { addMatchScoresToMovies } from '../services/matchScore.js';
 import { sortMovies } from '../services/movieSort.js';
 import { addUserPreferencesToMovies } from '../services/userPreferences.js';
 
 const router = express.Router();
+
+/**
+ * GET /api/discover/movies/genres
+ * Get available movie genres
+ */
+router.get('/movies/genres', async (req, res, next) => {
+  try {
+    const genres = await getMovieGenres();
+    res.json({ genres });
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * GET /api/discover/popular

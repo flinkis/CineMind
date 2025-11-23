@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import axios from 'axios';
 import MovieCard from '../components/MovieCard';
 import MovieGrid from '../components/MovieGrid';
+import { SkeletonMovieGrid, LoadingContainer, LoadingSpinner, LoadingText } from '../components/SkeletonLoader';
 
 const Container = styled.div`
   max-width: 1200px;
@@ -95,11 +96,6 @@ const RefreshButton = styled.button`
   }
 `;
 
-const Loading = styled.div`
-  text-align: center;
-  padding: ${(props) => props.theme.spacing.xxl};
-  color: ${(props) => props.theme.colors.textSecondary};
-`;
 
 const Error = styled.div`
   text-align: center;
@@ -194,6 +190,212 @@ const ErrorValue = styled(InfoValue)`
   color: ${(props) => props.theme.colors.error};
 `;
 
+// Filter drawer styles (inspired by TVShowsPage)
+const FiltersButton = styled.button`
+  position: fixed;
+  bottom: ${(props) => props.theme.spacing.xl};
+  right: ${(props) => props.theme.spacing.xl};
+  padding: ${(props) => props.theme.spacing.md} ${(props) => props.theme.spacing.lg};
+  font-size: ${(props) => props.theme.fontSizes.md};
+  background: ${(props) => props.theme.colors.primary};
+  border: none;
+  border-radius: ${(props) => props.theme.borderRadius.full};
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: ${(props) => props.theme.spacing.sm};
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+  &:hover {
+    background: ${(props) => props.theme.colors.primaryDark};
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  ${(props) => props.$hasActive && `
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 3px ${props.theme.colors.primary}40;
+  `}
+`;
+
+const DrawerOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  opacity: ${(props) => props.$isOpen ? 1 : 0};
+  visibility: ${(props) => props.$isOpen ? 'visible' : 'hidden'};
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+`;
+
+const DrawerContainer = styled.div`
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 400px;
+  max-width: 90vw;
+  background: ${(props) => props.theme.colors.surface};
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
+  z-index: 1001;
+  transform: translateX(${(props) => props.$isOpen ? '0' : '100%'});
+  transition: transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  @media (max-width: 768px) {
+    width: 100vw;
+    max-width: 100vw;
+  }
+`;
+
+const DrawerHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: ${(props) => props.theme.spacing.lg};
+  border-bottom: 1px solid ${(props) => props.theme.colors.border};
+`;
+
+const DrawerTitle = styled.h3`
+  font-size: ${(props) => props.theme.fontSizes.lg};
+  font-weight: 600;
+  color: ${(props) => props.theme.colors.text};
+  margin: 0;
+`;
+
+const DrawerCloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: ${(props) => props.theme.fontSizes.xl};
+  color: ${(props) => props.theme.colors.textSecondary};
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: ${(props) => props.theme.borderRadius.md};
+  transition: all 0.2s;
+
+  &:hover {
+    background: ${(props) => props.theme.colors.surfaceLight};
+    color: ${(props) => props.theme.colors.text};
+  }
+`;
+
+const DrawerContent = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding: ${(props) => props.theme.spacing.lg};
+`;
+
+const FiltersContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${(props) => props.theme.spacing.lg};
+`;
+
+const FiltersGrid = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${(props) => props.theme.spacing.md};
+`;
+
+const FilterGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${(props) => props.theme.spacing.xs};
+`;
+
+const FilterLabel = styled.label`
+  font-size: ${(props) => props.theme.fontSizes.sm};
+  color: ${(props) => props.theme.colors.textSecondary};
+  font-weight: 500;
+`;
+
+const FilterSelect = styled.select`
+  padding: ${(props) => props.theme.spacing.sm} ${(props) => props.theme.spacing.md};
+  font-size: ${(props) => props.theme.fontSizes.sm};
+  background: ${(props) => props.theme.colors.background};
+  border: 2px solid ${(props) => props.theme.colors.border};
+  border-radius: ${(props) => props.theme.borderRadius.md};
+  color: ${(props) => props.theme.colors.text};
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:focus {
+    outline: none;
+    border-color: ${(props) => props.theme.colors.primary};
+  }
+
+  &:hover {
+    border-color: ${(props) => props.theme.colors.primary};
+  }
+`;
+
+const FilterMultiSelect = styled.select`
+  padding: ${(props) => props.theme.spacing.sm} ${(props) => props.theme.spacing.md};
+  font-size: ${(props) => props.theme.fontSizes.sm};
+  background: ${(props) => props.theme.colors.background};
+  border: 2px solid ${(props) => props.theme.colors.border};
+  border-radius: ${(props) => props.theme.borderRadius.md};
+  color: ${(props) => props.theme.colors.text};
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 100px;
+  max-height: 150px;
+  overflow-y: auto;
+
+  &:focus {
+    outline: none;
+    border-color: ${(props) => props.theme.colors.primary};
+  }
+
+  &:hover {
+    border-color: ${(props) => props.theme.colors.primary};
+  }
+`;
+
+const FilterActions = styled.div`
+  display: flex;
+  gap: ${(props) => props.theme.spacing.sm};
+  flex-wrap: wrap;
+  margin-top: ${(props) => props.theme.spacing.md};
+  padding-top: ${(props) => props.theme.spacing.md};
+  border-top: 1px solid ${(props) => props.theme.colors.border};
+`;
+
+const ClearFiltersButton = styled.button`
+  padding: ${(props) => props.theme.spacing.sm} ${(props) => props.theme.spacing.md};
+  font-size: ${(props) => props.theme.fontSizes.sm};
+  background: ${(props) => props.theme.colors.surface};
+  border: 1px solid ${(props) => props.theme.colors.border};
+  border-radius: ${(props) => props.theme.borderRadius.md};
+  color: ${(props) => props.theme.colors.text};
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+
+  &:hover {
+    background: ${(props) => props.theme.colors.surfaceLight};
+    border-color: ${(props) => props.theme.colors.primary};
+  }
+`;
+
 function RecommendationsPage() {
   const [apiToken, setApiToken] = useState(
     localStorage.getItem('cinemind_api_token') || ''
@@ -209,6 +411,15 @@ function RecommendationsPage() {
   const [refreshError, setRefreshError] = useState(null);
   const [refreshSuccess, setRefreshSuccess] = useState(null);
   const initialLoadRef = useRef(false);
+  
+  // Filter state
+  const [minYear, setMinYear] = useState('');
+  const [maxYear, setMaxYear] = useState('');
+  const [minRating, setMinRating] = useState('');
+  const [genreIds, setGenreIds] = useState([]);
+  const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
+  const [availableGenres, setAvailableGenres] = useState([]);
+  const [loadingFilters, setLoadingFilters] = useState(false);
 
   // Load status information
   const loadStatus = async () => {
@@ -241,6 +452,23 @@ function RecommendationsPage() {
     }
   };
 
+  // Load available genres
+  useEffect(() => {
+    const loadGenres = async () => {
+      setLoadingFilters(true);
+      try {
+        const response = await axios.get('/api/discover/movies/genres').catch(() => ({ data: { genres: [] } }));
+        setAvailableGenres(response.data.genres || []);
+      } catch (err) {
+        console.error('Failed to load genres:', err);
+      } finally {
+        setLoadingFilters(false);
+      }
+    };
+    
+    loadGenres();
+  }, []);
+
   // Load recommendations from JSON endpoint
   const loadRecommendations = async () => {
     if (!apiToken) {
@@ -252,12 +480,26 @@ function RecommendationsPage() {
     setError(null);
 
     try {
-      const response = await axios.get('/api/recommendations', {
-        params: {
-          api_token: apiToken,
-          limit,
-        },
-      });
+      const params = {
+        api_token: apiToken,
+        limit,
+      };
+      
+      // Add filter parameters
+      if (minYear) {
+        params.minYear = minYear;
+      }
+      if (maxYear) {
+        params.maxYear = maxYear;
+      }
+      if (minRating) {
+        params.minRating = minRating;
+      }
+      if (genreIds.length > 0) {
+        params.genres = genreIds.join(',');
+      }
+      
+      const response = await axios.get('/api/recommendations', { params });
 
       // Movies are already in the correct format
       setMovies(response.data.movies || []);
@@ -318,14 +560,14 @@ function RecommendationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiToken]);
 
-  // Auto-load recommendations when limit changes (if API token exists and initial load is done)
+  // Auto-load recommendations when limit or filters change (if API token exists and initial load is done)
   useEffect(() => {
     if (apiToken && initialLoadRef.current && !loading) {
-      // Reload recommendations when limit changes (only after initial load)
+      // Reload recommendations when limit or filters change (only after initial load)
       loadRecommendations();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [limit]);
+  }, [limit, minYear, maxYear, minRating, genreIds]);
 
   // Auto-hide success message after 10 seconds
   useEffect(() => {
@@ -352,6 +594,42 @@ function RecommendationsPage() {
       alert('RSS URL copied to clipboard!');
     });
   };
+
+  // Filter handlers
+  const handleMinYearChange = (newYear) => {
+    setMinYear(newYear);
+  };
+
+  const handleMaxYearChange = (newYear) => {
+    setMaxYear(newYear);
+  };
+
+  const handleMinRatingChange = (newRating) => {
+    setMinRating(newRating);
+  };
+
+  const handleGenreChange = (e) => {
+    const selected = Array.from(e.target.selectedOptions, option => option.value);
+    setGenreIds(selected);
+  };
+
+  const handleClearFilters = () => {
+    setMinYear('');
+    setMaxYear('');
+    setMinRating('');
+    setGenreIds([]);
+  };
+
+  const handleOpenFiltersDrawer = () => {
+    setFiltersDrawerOpen(true);
+  };
+
+  const handleCloseFiltersDrawer = () => {
+    setFiltersDrawerOpen(false);
+  };
+
+  // Check if any filters are active
+  const hasActiveFilters = minYear || maxYear || minRating || genreIds.length > 0;
 
   // Refresh movies from TMDB
   const handleRefresh = async () => {
@@ -436,6 +714,122 @@ function RecommendationsPage() {
         </RSSUrl>
       )}
 
+      {/* Filters Button */}
+      {apiToken && (
+        <>
+          <FiltersButton onClick={handleOpenFiltersDrawer} $hasActive={hasActiveFilters}>
+            <span>🔍</span>
+            <span>Filters</span>
+            {hasActiveFilters && <span>(Active)</span>}
+          </FiltersButton>
+
+          {/* Filters Drawer */}
+          <DrawerOverlay $isOpen={filtersDrawerOpen} onClick={handleCloseFiltersDrawer} />
+          <DrawerContainer $isOpen={filtersDrawerOpen} onClick={(e) => e.stopPropagation()}>
+            <DrawerHeader>
+              <DrawerTitle>Filter Recommendations</DrawerTitle>
+              <DrawerCloseButton onClick={handleCloseFiltersDrawer} aria-label="Close filters">
+                ×
+              </DrawerCloseButton>
+            </DrawerHeader>
+            <DrawerContent>
+              <FiltersContainer>
+                <FiltersGrid>
+                  <FilterGroup>
+                    <FilterLabel htmlFor="filter-min-year">Min Year</FilterLabel>
+                    <FilterSelect
+                      id="filter-min-year"
+                      value={minYear}
+                      onChange={(e) => handleMinYearChange(e.target.value)}
+                    >
+                      <option value="">Any Year</option>
+                      {Array.from({ length: 50 }, (_, i) => {
+                        const year = new Date().getFullYear() - i;
+                        return (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
+                        );
+                      })}
+                    </FilterSelect>
+                  </FilterGroup>
+
+                  <FilterGroup>
+                    <FilterLabel htmlFor="filter-max-year">Max Year</FilterLabel>
+                    <FilterSelect
+                      id="filter-max-year"
+                      value={maxYear}
+                      onChange={(e) => handleMaxYearChange(e.target.value)}
+                    >
+                      <option value="">Any Year</option>
+                      {Array.from({ length: 50 }, (_, i) => {
+                        const year = new Date().getFullYear() - i;
+                        return (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
+                        );
+                      })}
+                    </FilterSelect>
+                  </FilterGroup>
+
+                  <FilterGroup>
+                    <FilterLabel htmlFor="filter-rating">Min Rating</FilterLabel>
+                    <FilterSelect
+                      id="filter-rating"
+                      value={minRating}
+                      onChange={(e) => handleMinRatingChange(e.target.value)}
+                    >
+                      <option value="">Any Rating</option>
+                      <option value="1">1+</option>
+                      <option value="2">2+</option>
+                      <option value="3">3+</option>
+                      <option value="4">4+</option>
+                      <option value="5">5+</option>
+                      <option value="6">6+</option>
+                      <option value="7">7+</option>
+                      <option value="8">8+</option>
+                      <option value="9">9+</option>
+                    </FilterSelect>
+                  </FilterGroup>
+
+                  <FilterGroup>
+                    <FilterLabel htmlFor="filter-genres">Genres (Hold Ctrl/Cmd to select multiple)</FilterLabel>
+                    <FilterMultiSelect
+                      id="filter-genres"
+                      multiple
+                      value={genreIds}
+                      onChange={handleGenreChange}
+                      disabled={loadingFilters}
+                      size="4"
+                    >
+                      {availableGenres.map((genre) => (
+                        <option key={genre.id} value={genre.id}>
+                          {genre.name}
+                        </option>
+                      ))}
+                    </FilterMultiSelect>
+                    {genreIds.length > 0 && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                        {genreIds.length} selected
+                      </div>
+                    )}
+                  </FilterGroup>
+                </FiltersGrid>
+                
+                {hasActiveFilters && (
+                  <FilterActions>
+                    <ClearFiltersButton onClick={handleClearFilters}>
+                      Clear All Filters
+                    </ClearFiltersButton>
+                  </FilterActions>
+                )}
+              </FiltersContainer>
+            </DrawerContent>
+          </DrawerContainer>
+        </>
+      )}
+
       {status && !loadingStatus && (
         <InfoBox>
           <InfoItem>
@@ -507,14 +901,24 @@ function RecommendationsPage() {
 
       {refreshError && <Error>{refreshError}</Error>}
 
-      {loading && <Loading>Loading recommendations...</Loading>}
+      {loading && (
+        <LoadingContainer>
+          <LoadingSpinner size="48px" />
+          <LoadingText>Loading recommendations...</LoadingText>
+        </LoadingContainer>
+      )}
 
       {error && <Error>{error}</Error>}
 
       {!loading && !error && movies.length > 0 && (
         <MovieGrid>
           {movies.map((movie) => (
-            <MovieCard key={movie.tmdbId || movie.id} movie={movie} showScore={true} />
+            <MovieCard 
+              key={movie.tmdbId || movie.id} 
+              movie={movie} 
+              showScore={true}
+              showExplanation={true}
+            />
           ))}
         </MovieGrid>
       )}

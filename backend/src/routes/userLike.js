@@ -6,6 +6,7 @@ import {
   stringifyEmbedding,
 } from '../services/embeddings.js';
 import { clearNormalizationCache } from '../services/matchScore.js';
+import { validateTmdbIdBody, validateTmdbId } from '../middleware/validation.js';
 
 const router = express.Router();
 
@@ -20,13 +21,9 @@ const router = express.Router();
  * 2. Computes embedding for the movie
  * 3. Stores the movie and embedding in the database
  */
-router.post('/', async (req, res, next) => {
+router.post('/', validateTmdbIdBody, async (req, res, next) => {
   try {
-    const { tmdbId } = req.body;
-
-    if (!tmdbId) {
-      return res.status(400).json({ error: 'tmdbId is required' });
-    }
+    const tmdbId = req.validatedTmdbId;
 
     // Check if movie is already liked
     const existingLike = await prisma.userLike.findUnique({
@@ -81,13 +78,9 @@ router.post('/', async (req, res, next) => {
  * This endpoint:
  * 1. Deletes the movie from the user's liked list
  */
-router.delete('/:tmdbId', async (req, res, next) => {
+router.delete('/:tmdbId', validateTmdbId, async (req, res, next) => {
   try {
-    const tmdbId = parseInt(req.params.tmdbId);
-
-    if (!tmdbId || isNaN(tmdbId)) {
-      return res.status(400).json({ error: 'Invalid tmdbId' });
-    }
+    const tmdbId = req.validatedTmdbId;
 
     // Check if movie is liked
     const existingLike = await prisma.userLike.findUnique({

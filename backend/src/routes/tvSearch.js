@@ -1,6 +1,7 @@
 import express from 'express';
 import { searchTV, formatTVData } from '../services/tmdb.js';
 import { sortTVShows } from '../services/tvSort.js';
+import { validateSearchQuery, validatePagination } from '../middleware/validation.js';
 
 const router = express.Router();
 
@@ -13,15 +14,11 @@ const router = express.Router();
  * - page: page number (default: 1)
  * - sort: sort option (default, rating-desc, rating-asc, release-desc, etc.)
  */
-router.get('/tv', async (req, res, next) => {
+router.get('/tv', validateSearchQuery, validatePagination, async (req, res, next) => {
   try {
-    const query = req.query.q;
-    const page = parseInt(req.query.page) || 1;
+    const query = req.validatedQuery;
+    const page = req.validatedPage || 1;
     const sortBy = req.query.sort || 'default';
-
-    if (!query) {
-      return res.status(400).json({ error: 'Search query is required' });
-    }
 
     const tmdbResponse = await searchTV(query, page);
     const tvShows = (tmdbResponse.results || []).map(formatTVData);

@@ -12,7 +12,7 @@ const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 /**
  * Search movies by title
  */
-export async function searchMovies(query, page = 1) {
+export async function searchMovies(query, page = 1, includeAdult = true) {
   try {
     const response = await axios.get(`${TMDB_BASE_URL}/search/movie`, {
       params: {
@@ -20,6 +20,7 @@ export async function searchMovies(query, page = 1) {
         query,
         page,
         language: 'en-US',
+        include_adult: includeAdult,
       },
     });
     return response.data;
@@ -451,7 +452,7 @@ export async function discoverMovies({ page = 1, sortBy = 'popularity.desc', fil
 /**
  * Search TV shows by title
  */
-export async function searchTV(query, page = 1) {
+export async function searchTV(query, page = 1, includeAdult = true) {
   try {
     const response = await axios.get(`${TMDB_BASE_URL}/search/tv`, {
       params: {
@@ -459,6 +460,7 @@ export async function searchTV(query, page = 1) {
         query,
         page,
         language: 'en-US',
+        include_adult: includeAdult,
       },
     });
     return response.data;
@@ -769,6 +771,32 @@ export async function getAiringTodayTV(page = 1, sortBy = null, filters = {}) {
       throw new Error(`Failed to fetch airing today TV shows: ${error.response.data.status_message || error.message}`);
     }
     throw new Error(`Failed to fetch airing today TV shows: ${error.message}`);
+  }
+}
+
+/**
+ * Get movie genres
+ */
+export async function getMovieGenres() {
+  try {
+    if (!TMDB_API_KEY) {
+      throw new Error('TMDB_API_KEY is not configured in environment variables');
+    }
+
+    const response = await axios.get(`${TMDB_BASE_URL}/genre/movie/list`, {
+      params: {
+        api_key: TMDB_API_KEY,
+        language: 'en-US',
+      },
+    });
+    return response.data.genres || [];
+  } catch (error) {
+    console.error('TMDB movie genres error:', error.message);
+    if (error.response) {
+      console.error('TMDB API response:', error.response.data);
+      throw new Error(`Failed to fetch movie genres: ${error.response.data.status_message || error.message}`);
+    }
+    throw new Error(`Failed to fetch movie genres: ${error.message}`);
   }
 }
 

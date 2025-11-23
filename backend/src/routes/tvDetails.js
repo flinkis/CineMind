@@ -2,6 +2,7 @@ import express from 'express';
 import { getTVDetails, getSimilarTV, formatTVData } from '../services/tmdb.js';
 import { addMatchScoresToMovies } from '../services/matchScore.js';
 import { addUserPreferencesToMovies } from '../services/userPreferences.js';
+import { validateTmdbId } from '../middleware/validation.js';
 
 const router = express.Router();
 
@@ -17,13 +18,9 @@ const router = express.Router();
  * - Cast and crew
  * - Similar TV shows
  */
-router.get('/:tmdbId', async (req, res, next) => {
+router.get('/:tmdbId', validateTmdbId, async (req, res, next) => {
   try {
-    const tmdbId = parseInt(req.params.tmdbId);
-
-    if (!tmdbId || isNaN(tmdbId)) {
-      return res.status(400).json({ error: 'Invalid TMDB ID' });
-    }
+    const tmdbId = req.validatedTmdbId;
 
     // Fetch TV show details with videos, external IDs, and credits
     const tvDetails = await getTVDetails(tmdbId);

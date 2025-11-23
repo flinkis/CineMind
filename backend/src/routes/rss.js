@@ -1,28 +1,10 @@
 import express from 'express';
 import { computeRecommendations } from './recommendations.js';
 import { Builder } from 'xml2js';
+import { authenticateToken } from '../middleware/auth.js';
+import { validatePagination } from '../middleware/validation.js';
 
 const router = express.Router();
-
-// API token authentication middleware
-const authenticateToken = (req, res, next) => {
-  const apiToken = req.query.api_token || req.headers['x-api-token'];
-  const expectedToken = process.env.API_TOKEN;
-
-  if (!expectedToken) {
-    return res.status(500).json({
-      error: 'API token not configured on server',
-    });
-  }
-
-  if (!apiToken || apiToken !== expectedToken) {
-    return res.status(401).json({
-      error: 'Invalid or missing API token',
-    });
-  }
-
-  next();
-};
 
 /**
  * GET /api/rss/recommendations
@@ -44,12 +26,42 @@ const authenticateToken = (req, res, next) => {
  * - Each item contains movie metadata (title, description, link, etc.)
  * - Includes similarity score in description
  */
-router.get('/recommendations', authenticateToken, async (req, res, next) => {
+router.get('/recommendations', authenticateToken, validatePagination, async (req, res, next) => {
   try {
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = req.validatedLimit || 20;
 
-    // Get recommendations using shared function
-    const movies = await computeRecommendations(limit);
+    // Parse filter parameters from query string
+    const filters = {};
+
+    // Parse genre IDs (comma-separated)
+    if (req.query.genres) {
+      filters.genreIds = req.query.genres.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+    }
+
+    // Parse year filters
+    if (req.query.minYear) {
+      const minYear = parseInt(req.query.minYear);
+      if (!isNaN(minYear)) {
+        filters.minYear = minYear;
+      }
+    }
+    if (req.query.maxYear) {
+      const maxYear = parseInt(req.query.maxYear);
+      if (!isNaN(maxYear)) {
+        filters.maxYear = maxYear;
+      }
+    }
+
+    // Parse rating filter
+    if (req.query.minRating) {
+      const minRating = parseFloat(req.query.minRating);
+      if (!isNaN(minRating)) {
+        filters.minRating = minRating;
+      }
+    }
+
+    // Get recommendations using shared function with filters
+    const movies = await computeRecommendations(limit, 0.5, filters);
 
     if (movies.length === 0) {
       // Return empty RSS feed if no recommendations
@@ -104,7 +116,7 @@ function generateRSS(movies) {
               ? new Date(movie.releaseDate).toUTCString()
               : new Date().toUTCString(),
           };
-          
+
           // Add enclosure only if poster exists
           if (movie.posterPath) {
             item.enclosure = {
@@ -114,7 +126,7 @@ function generateRSS(movies) {
               },
             };
           }
-          
+
           return item;
         }),
       },

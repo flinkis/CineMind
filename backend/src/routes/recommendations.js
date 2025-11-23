@@ -9,36 +9,27 @@ import {
 import { refreshUpcomingMovies, getRefreshStatus } from '../services/movieRefresh.js';
 import { normalizeScore, getGlobalNormalizationParams } from '../services/matchScore.js';
 import { addUserPreferencesToMovies } from '../services/userPreferences.js';
+import { authenticateToken } from '../middleware/auth.js';
+import { validatePagination } from '../middleware/validation.js';
+import { getMovieDetails } from '../services/tmdb.js';
 
 const router = express.Router();
-
-// API token authentication middleware
-const authenticateToken = (req, res, next) => {
-  const apiToken = req.query.api_token || req.headers['x-api-token'];
-  const expectedToken = process.env.API_TOKEN;
-
-  if (!expectedToken) {
-    return res.status(500).json({
-      error: 'API token not configured on server',
-    });
-  }
-
-  if (!apiToken || apiToken !== expectedToken) {
-    return res.status(401).json({
-      error: 'Invalid or missing API token',
-    });
-  }
-
-  next();
-};
 
 /**
  * Helper function to compute recommendations
  * Returns an array of movies with similarity scores
  * 
  * Uses refined taste vector that accounts for both likes and dislikes
+ * 
+ * @param {number} limit - Maximum number of recommendations to return
+ * @param {number} dislikeWeight - Weight for dislikes (0-1)
+ * @param {Object} filters - Filter options
+ * @param {number} filters.minYear - Minimum release year
+ * @param {number} filters.maxYear - Maximum release year
+ * @param {number} filters.minRating - Minimum vote average
+ * @param {Array<number>} filters.genreIds - Array of genre IDs to filter by (TMDB genre IDs)
  */
-async function computeRecommendations(limit = 20, dislikeWeight = 0.5) {
+async function computeRecommendations(limit = 20, dislikeWeight = 0.5, filters = {}) {
   // Get all user liked movies
   const userLikes = await prisma.userLike.findMany();
 
@@ -83,7 +74,15 @@ async function computeRecommendations(limit = 20, dislikeWeight = 0.5) {
     },
   });
 
-  // Compute similarity scores
+  // Pre-parse all liked movie embeddings once (performance optimization)
+  const parsedLikedEmbeddings = userLikes.map((likedMovie) => ({
+    tmdbId: likedMovie.tmdbId,
+    title: likedMovie.title,
+    posterPath: likedMovie.posterPath,
+    embedding: parseEmbedding(likedMovie.embedding),
+  })).filter(item => item.embedding !== null);
+
+  // Compute similarity scores (without explanations first for performance)
   const moviesWithScores = movies
     .map((movie) => {
       const movieEmbedding = parseEmbedding(movie.embedding);
@@ -101,17 +100,97 @@ async function computeRecommendations(limit = 20, dislikeWeight = 0.5) {
         popularity: movie.popularity,
         voteAverage: movie.voteAverage,
         similarity,
+        movieEmbedding, // Keep embedding for explanation computation
       };
     })
     .filter(Boolean)
     .sort((a, b) => b.similarity - a.similarity);
 
+  // Only compute explanations for top recommendations (performance optimization)
+  // Limit to top 20 to avoid computing for all movies
+  const topMoviesForExplanations = moviesWithScores.slice(0, Math.min(20, limit));
+
+  // Compute explanations only for top movies
+  topMoviesForExplanations.forEach((movie) => {
+    if (!movie.movieEmbedding) return;
+
+    // Find top similar liked movies for explanation
+    const similarLikedMovies = parsedLikedEmbeddings
+      .map((likedItem) => {
+        const individualSimilarity = cosineSimilarity(movie.movieEmbedding, likedItem.embedding);
+        return {
+          tmdbId: likedItem.tmdbId,
+          title: likedItem.title,
+          posterPath: likedItem.posterPath,
+          similarity: individualSimilarity,
+        };
+      })
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 5); // Top 5 most similar liked movies
+
+    movie.similarLikedMovies = similarLikedMovies;
+    // Remove embedding from response (no longer needed)
+    delete movie.movieEmbedding;
+  });
+
+  // Remove embedding from movies that don't have explanations
+  moviesWithScores.forEach((movie) => {
+    if (movie.movieEmbedding) {
+      delete movie.movieEmbedding;
+    }
+  });
+
+  // Apply filters (year, rating) - these use data we already have
+  let filteredMovies = moviesWithScores;
+
+  if (filters.minYear || filters.maxYear) {
+    filteredMovies = filteredMovies.filter((movie) => {
+      if (!movie.releaseDate) return false;
+      const year = new Date(movie.releaseDate).getFullYear();
+      if (isNaN(year)) return false;
+
+      if (filters.minYear && year < filters.minYear) return false;
+      if (filters.maxYear && year > filters.maxYear) return false;
+      return true;
+    });
+  }
+
+  if (filters.minRating !== undefined && filters.minRating !== null) {
+    filteredMovies = filteredMovies.filter((movie) => {
+      return movie.voteAverage >= filters.minRating;
+    });
+  }
+
+  // For genre filtering, we need to fetch from TMDB
+  // Check all movies to ensure genre filter is properly applied
+  if (filters.genreIds && filters.genreIds.length > 0) {
+    const genreIdsSet = new Set(filters.genreIds.map(id => parseInt(id)));
+
+    // Fetch genres for all filtered movies to ensure proper filtering
+    const genrePromises = filteredMovies.map(async (movie) => {
+      try {
+        const details = await getMovieDetails(movie.tmdbId);
+        const movieGenres = (details.genres || []).map(g => g.id);
+        // Check if movie has any of the requested genres
+        const hasGenre = movieGenres.some(genreId => genreIdsSet.has(genreId));
+        return { movie, hasGenre };
+      } catch (error) {
+        console.error(`Error fetching genres for movie ${movie.tmdbId}:`, error.message);
+        return { movie, hasGenre: false };
+      }
+    });
+
+    const genreResults = await Promise.all(genrePromises);
+    // Only include movies that match the genre filter
+    filteredMovies = genreResults.filter(r => r.hasGenre).map(r => r.movie);
+  }
+
   // Normalize scores using global normalization (consistent across all endpoints)
   // Get global normalization parameters (cached, based on all upcoming movies)
   const normalizationParams = await getGlobalNormalizationParams(dislikeWeight);
-  
-  if (moviesWithScores.length > 0 && normalizationParams) {
-    moviesWithScores.forEach(movie => {
+
+  if (filteredMovies.length > 0 && normalizationParams) {
+    filteredMovies.forEach(movie => {
       // Normalize using global parameters (consistent with other endpoints)
       movie.normalizedSimilarity = normalizeScore(movie.similarity, normalizationParams);
       // Keep raw similarity for reference (actual cosine similarity value)
@@ -119,16 +198,16 @@ async function computeRecommendations(limit = 20, dislikeWeight = 0.5) {
       // Use normalized as primary similarity
       movie.similarity = movie.normalizedSimilarity;
     });
-  } else if (moviesWithScores.length > 0) {
+  } else if (filteredMovies.length > 0) {
     // If no normalization params available, use raw scores
-    moviesWithScores.forEach(movie => {
+    filteredMovies.forEach(movie => {
       movie.normalizedSimilarity = movie.similarity;
       movie.rawSimilarity = movie.similarity;
     });
   }
 
   // Add user preferences (liked/disliked status) before returning
-  const moviesWithPreferences = await addUserPreferencesToMovies(moviesWithScores);
+  const moviesWithPreferences = await addUserPreferencesToMovies(filteredMovies);
 
   return moviesWithPreferences.slice(0, limit);
 }
@@ -159,13 +238,13 @@ router.get('/status', authenticateToken, async (req, res, next) => {
   try {
     // Get count of liked movies
     const likedMoviesCount = await prisma.userLike.count();
-    
+
     // Get count of disliked movies
     const dislikedMoviesCount = await prisma.userDislike.count();
-    
+
     // Get refresh status
     const refreshStatus = await getRefreshStatus();
-    
+
     res.json({
       likedMovies: likedMoviesCount,
       dislikedMovies: dislikedMoviesCount,
@@ -199,41 +278,57 @@ router.get('/status', authenticateToken, async (req, res, next) => {
  * 6. Sorts by similarity score (highest first)
  * 7. Returns top N movies as JSON
  */
-router.get('/', authenticateToken, async (req, res, next) => {
+router.get('/', authenticateToken, validatePagination, async (req, res, next) => {
   try {
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = req.validatedLimit || 20;
     const dislikeWeight = parseFloat(req.query.dislikeWeight) || 0.5;
     const autoRefresh = req.query.autoRefresh !== 'false'; // Default to true
-    
+
     // Clamp dislikeWeight between 0 and 1
     const clampedDislikeWeight = Math.max(0, Math.min(1, dislikeWeight));
-    
+
+    // Parse filter parameters
+    const filters = {};
+    if (req.query.minYear) {
+      filters.minYear = parseInt(req.query.minYear);
+    }
+    if (req.query.maxYear) {
+      filters.maxYear = parseInt(req.query.maxYear);
+    }
+    if (req.query.minRating) {
+      filters.minRating = parseFloat(req.query.minRating);
+    }
+    if (req.query.genres) {
+      // Genres can be comma-separated list of genre IDs
+      filters.genreIds = req.query.genres.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+    }
+
     // Check if movies need to be refreshed
     let refreshInfo = null;
     if (autoRefresh) {
       const refreshStatus = await getRefreshStatus();
-      
+
       if (refreshStatus.needsRefresh) {
         console.log('🔄 Auto-refreshing movies (needsRefresh=true)');
         console.log(`   Upcoming movies: ${refreshStatus.upcomingMoviesCount}`);
         console.log(`   Last update: ${refreshStatus.lastUpdate || 'never'}`);
         console.log(`   Hours since update: ${refreshStatus.hoursSinceLastUpdate || 'N/A'}`);
-        
+
         // Refresh movies (fetch ALL pages to get complete coverage)
         const refreshResult = await refreshUpcomingMovies({
           page: 1,
           maxPages: null, // null means fetch all pages
           force: false,
         });
-        
+
         refreshInfo = {
           refreshed: refreshResult.success,
           stats: refreshResult.stats,
-          reason: refreshStatus.upcomingMoviesCount === 0 
-            ? 'no_upcoming_movies' 
+          reason: refreshStatus.upcomingMoviesCount === 0
+            ? 'no_upcoming_movies'
             : 'stale_data',
         };
-        
+
         if (refreshResult.success) {
           console.log(`✅ Auto-refresh complete: ${refreshResult.stats.totalProcessed} created, ${refreshResult.stats.totalUpdated} updated`);
         } else {
@@ -241,8 +336,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
         }
       }
     }
-    
-    const movies = await computeRecommendations(limit, clampedDislikeWeight);
+
+    const movies = await computeRecommendations(limit, clampedDislikeWeight, filters);
 
     // Get status for additional context
     const likedMoviesCount = await prisma.userLike.count();

@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import axios from 'axios';
 import MovieCard from '../components/MovieCard';
 import MovieGrid from '../components/MovieGrid';
+import { SkeletonMovieGrid, LoadingContainer, LoadingSpinner, LoadingText } from '../components/SkeletonLoader';
 
 const Container = styled.div`
   max-width: 1200px;
@@ -98,11 +99,6 @@ const ClearButton = styled.button`
   }
 `;
 
-const Loading = styled.div`
-  text-align: center;
-  padding: ${(props) => props.theme.spacing.xxl};
-  color: ${(props) => props.theme.colors.textSecondary};
-`;
 
 const Error = styled.div`
   text-align: center;
@@ -1111,7 +1107,12 @@ function TVShowsPage() {
         </form>
       </SearchContainer>
 
-      {loading && <Loading>Searching TV shows...</Loading>}
+      {loading && (
+        <LoadingContainer>
+          <LoadingSpinner size="48px" />
+          <LoadingText>Searching TV shows...</LoadingText>
+        </LoadingContainer>
+      )}
 
       {error && <Error>{error}</Error>}
 
@@ -1368,7 +1369,7 @@ function TVShowsPage() {
           </Tabs>
 
           {loadingDiscovery && discoveryTVShows.length === 0 && (
-            <Loading>Loading TV shows...</Loading>
+            <SkeletonMovieGrid count={12} />
           )}
 
           {!loadingDiscovery && discoveryTVShows.length > 0 && (

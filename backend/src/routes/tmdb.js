@@ -1,27 +1,9 @@
 import express from 'express';
 import { refreshUpcomingMovies, getRefreshStatus } from '../services/movieRefresh.js';
+import { authenticateToken } from '../middleware/auth.js';
+import { rateLimitStrict } from '../middleware/rateLimit.js';
 
 const router = express.Router();
-
-// API token authentication middleware
-const authenticateToken = (req, res, next) => {
-  const apiToken = req.query.api_token || req.headers['x-api-token'];
-  const expectedToken = process.env.API_TOKEN;
-
-  if (!expectedToken) {
-    return res.status(500).json({
-      error: 'API token not configured on server',
-    });
-  }
-
-  if (!apiToken || apiToken !== expectedToken) {
-    return res.status(401).json({
-      error: 'Invalid or missing API token',
-    });
-  }
-
-  next();
-};
 
 /**
  * POST /api/dev/refresh_tmdb
@@ -39,7 +21,7 @@ const authenticateToken = (req, res, next) => {
  * 3. Stores/updates movies in the database
  * 4. Marks them as upcoming movies
  */
-router.post('/', authenticateToken, async (req, res, next) => {
+router.post('/', authenticateToken, rateLimitStrict, async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const maxPagesParam = req.query.maxPages;

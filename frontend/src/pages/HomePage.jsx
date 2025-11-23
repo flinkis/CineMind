@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import axios from 'axios';
 import MovieCard from '../components/MovieCard';
 import MovieGrid from '../components/MovieGrid';
+import { SkeletonMovieGrid, LoadingContainer, LoadingSpinner, LoadingText } from '../components/SkeletonLoader';
 
 const Container = styled.div`
   max-width: 1200px;
@@ -98,11 +99,6 @@ const ClearButton = styled.button`
   }
 `;
 
-const Loading = styled.div`
-  text-align: center;
-  padding: ${(props) => props.theme.spacing.xxl};
-  color: ${(props) => props.theme.colors.textSecondary};
-`;
 
 const Error = styled.div`
   text-align: center;
@@ -657,7 +653,12 @@ function HomePage() {
         </form>
       </SearchContainer>
 
-      {loading && <Loading>Searching movies...</Loading>}
+      {loading && (
+        <LoadingContainer>
+          <LoadingSpinner size="48px" />
+          <LoadingText>Searching movies...</LoadingText>
+        </LoadingContainer>
+      )}
 
       {error && <Error>{error}</Error>}
 
@@ -759,7 +760,7 @@ function HomePage() {
           </Tabs>
 
           {loadingDiscovery && discoveryMovies.length === 0 && (
-            <Loading>Loading movies...</Loading>
+            <SkeletonMovieGrid count={12} />
           )}
 
           {!loadingDiscovery && discoveryMovies.length > 0 && (

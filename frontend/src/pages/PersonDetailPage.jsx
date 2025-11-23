@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import axios from 'axios';
 import MovieCard from '../components/MovieCard';
 import MovieGrid from '../components/MovieGrid';
+import { SkeletonDetailHeader, LoadingContainer, LoadingSpinner, LoadingText } from '../components/SkeletonLoader';
 
 const Container = styled.div`
   max-width: 1200px;
@@ -100,6 +101,124 @@ const Biography = styled.p`
   line-height: 1.6;
   color: ${(props) => props.theme.colors.textSecondary};
   margin-bottom: ${(props) => props.theme.spacing.lg};
+`;
+
+const BiographyContainer = styled.div`
+  margin-bottom: ${(props) => props.theme.spacing.lg};
+`;
+
+const ReadMoreButton = styled.button`
+  background: none;
+  border: none;
+  color: ${(props) => props.theme.colors.primary};
+  cursor: pointer;
+  font-size: ${(props) => props.theme.fontSizes.sm};
+  font-weight: 600;
+  padding: 0;
+  margin-top: ${(props) => props.theme.spacing.xs};
+  text-decoration: underline;
+  transition: color 0.2s;
+
+  &:hover {
+    color: ${(props) => props.theme.colors.primaryDark};
+  }
+`;
+
+// Modal styles
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 2000;
+  display: ${(props) => props.$isOpen ? 'flex' : 'none'};
+  align-items: center;
+  justify-content: center;
+  padding: ${(props) => props.theme.spacing.lg};
+  animation: ${(props) => props.$isOpen ? 'fadeIn 0.2s ease' : 'none'};
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+`;
+
+const ModalContainer = styled.div`
+  background: ${(props) => props.theme.colors.surface};
+  border-radius: ${(props) => props.theme.borderRadius.lg};
+  max-width: 700px;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  animation: ${(props) => props.$isOpen ? 'slideUp 0.3s ease' : 'none'};
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: ${(props) => props.theme.spacing.lg};
+  border-bottom: 1px solid ${(props) => props.theme.colors.border};
+`;
+
+const ModalTitle = styled.h2`
+  font-size: ${(props) => props.theme.fontSizes.xl};
+  margin: 0;
+  color: ${(props) => props.theme.colors.text};
+`;
+
+const ModalCloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: ${(props) => props.theme.fontSizes.xl};
+  color: ${(props) => props.theme.colors.textSecondary};
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: ${(props) => props.theme.borderRadius.md};
+  transition: all 0.2s;
+
+  &:hover {
+    background: ${(props) => props.theme.colors.surfaceLight};
+    color: ${(props) => props.theme.colors.text};
+  }
+`;
+
+const ModalContent = styled.div`
+  padding: ${(props) => props.theme.spacing.lg};
+  overflow-y: auto;
+  flex: 1;
+`;
+
+const ModalBiography = styled.p`
+  font-size: ${(props) => props.theme.fontSizes.md};
+  line-height: 1.8;
+  color: ${(props) => props.theme.colors.textSecondary};
+  white-space: pre-wrap;
+  margin: 0;
 `;
 
 const Actions = styled.div`
@@ -206,11 +325,6 @@ const Tab = styled.button`
   }
 `;
 
-const Loading = styled.div`
-  text-align: center;
-  padding: ${(props) => props.theme.spacing.xxl};
-  color: ${(props) => props.theme.colors.textSecondary};
-`;
 
 const Error = styled.div`
   text-align: center;
@@ -234,6 +348,9 @@ function PersonDetailPage() {
     const [error, setError] = useState(null);
     const [activeCategory, setActiveCategory] = useState('movies'); // 'movies' or 'tv'
     const [activeTab, setActiveTab] = useState('knownFor'); // 'knownFor', 'topRated', 'all'
+    const [biographyModalOpen, setBiographyModalOpen] = useState(false);
+    
+    const MAX_BIOGRAPHY_LENGTH = 300;
 
     useEffect(() => {
         const fetchPersonDetails = async () => {
@@ -284,7 +401,11 @@ function PersonDetailPage() {
         return (
             <Container>
                 <Content>
-                    <Loading>Loading person details...</Loading>
+                    <LoadingContainer>
+                        <SkeletonDetailHeader />
+                        <LoadingSpinner size="48px" />
+                        <LoadingText>Loading person details...</LoadingText>
+                    </LoadingContainer>
                 </Content>
             </Container>
         );
@@ -380,7 +501,20 @@ function PersonDetailPage() {
                             )}
                         </Meta>
 
-                        {person.biography && <Biography>{person.biography}</Biography>}
+                        {person.biography && (
+                            <BiographyContainer>
+                                <Biography>
+                                    {person.biography.length > MAX_BIOGRAPHY_LENGTH
+                                        ? `${person.biography.substring(0, MAX_BIOGRAPHY_LENGTH)}...`
+                                        : person.biography}
+                                </Biography>
+                                {person.biography.length > MAX_BIOGRAPHY_LENGTH && (
+                                    <ReadMoreButton onClick={() => setBiographyModalOpen(true)}>
+                                        Read more
+                                    </ReadMoreButton>
+                                )}
+                            </BiographyContainer>
+                        )}
 
                         <Actions>
                             {person.imdbUrl && (
@@ -508,6 +642,32 @@ function PersonDetailPage() {
                     )}
                 </Section>
             </Content>
+
+            {/* Biography Modal */}
+            {person.biography && (
+                <ModalOverlay 
+                    $isOpen={biographyModalOpen} 
+                    onClick={() => setBiographyModalOpen(false)}
+                >
+                    <ModalContainer 
+                        $isOpen={biographyModalOpen}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <ModalHeader>
+                            <ModalTitle>About {person.name}</ModalTitle>
+                            <ModalCloseButton 
+                                onClick={() => setBiographyModalOpen(false)}
+                                aria-label="Close modal"
+                            >
+                                ×
+                            </ModalCloseButton>
+                        </ModalHeader>
+                        <ModalContent>
+                            <ModalBiography>{person.biography}</ModalBiography>
+                        </ModalContent>
+                    </ModalContainer>
+                </ModalOverlay>
+            )}
         </Container>
     );
 }

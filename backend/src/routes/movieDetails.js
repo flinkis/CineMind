@@ -7,6 +7,7 @@ import {
   clearNormalizationCache,
 } from '../services/matchScore.js';
 import { addUserPreferencesToMovies, addUserPreferencesToMovie } from '../services/userPreferences.js';
+import { validateTmdbId } from '../middleware/validation.js';
 
 const router = express.Router();
 
@@ -19,13 +20,9 @@ const router = express.Router();
  * - Videos (trailers, teasers, etc.)
  * - External IDs (IMDB, etc.)
  */
-router.get('/:tmdbId', async (req, res, next) => {
+router.get('/:tmdbId', validateTmdbId, async (req, res, next) => {
   try {
-    const tmdbId = parseInt(req.params.tmdbId);
-
-    if (!tmdbId || isNaN(tmdbId)) {
-      return res.status(400).json({ error: 'Invalid TMDB ID' });
-    }
+    const tmdbId = req.validatedTmdbId;
 
     // Fetch movie details with videos, external IDs, and credits
     const movieDetails = await getMovieDetails(tmdbId);
@@ -84,7 +81,7 @@ router.get('/:tmdbId', async (req, res, next) => {
 
       // Add match scores for similar movies that exist in DB (using global normalization)
       similarMovies = await addMatchScoresToMovies(similarMovies);
-      
+
       // Add user preferences (liked/disliked status) to similar movies
       similarMovies = await addUserPreferencesToMovies(similarMovies);
     } catch (error) {

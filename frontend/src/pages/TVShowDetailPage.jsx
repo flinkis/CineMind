@@ -2,6 +2,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import axios from 'axios';
+import { SkeletonDetailHeader, LoadingContainer, LoadingSpinner, LoadingText } from '../components/SkeletonLoader';
 
 const Container = styled.div`
   max-width: 1400px;
@@ -640,11 +641,6 @@ const ThumbsDownIcon = ({ filled, size = 20 }) => (
   </svg>
 );
 
-const Loading = styled.div`
-  text-align: center;
-  padding: ${(props) => props.theme.spacing.xxl};
-  color: ${(props) => props.theme.colors.textSecondary};
-`;
 
 const Error = styled.div`
   text-align: center;
@@ -1082,7 +1078,11 @@ function TVShowDetailPage() {
     return (
       <Container>
         <Content>
-          <Loading>Loading TV show details...</Loading>
+          <LoadingContainer>
+            <SkeletonDetailHeader />
+            <LoadingSpinner size="48px" />
+            <LoadingText>Loading TV show details...</LoadingText>
+          </LoadingContainer>
         </Content>
       </Container>
     );

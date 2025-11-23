@@ -2,6 +2,7 @@ import express from 'express';
 import { getPersonDetails } from '../services/tmdb.js';
 import { addMatchScoresToMovies } from '../services/matchScore.js';
 import { addUserPreferencesToMovies } from '../services/userPreferences.js';
+import { validateTmdbId } from '../middleware/validation.js';
 
 const router = express.Router();
 
@@ -16,13 +17,9 @@ const router = express.Router();
  * - Top rated movies/TV shows they are known for
  * - External IDs (IMDB, etc.)
  */
-router.get('/:personId', async (req, res, next) => {
+router.get('/:personId', validateTmdbId, async (req, res, next) => {
   try {
-    const personId = parseInt(req.params.personId);
-
-    if (!personId || isNaN(personId)) {
-      return res.status(400).json({ error: 'Invalid person ID' });
-    }
+    const personId = req.validatedTmdbId;
 
     // Fetch person details with filmography
     const personDetails = await getPersonDetails(personId);
@@ -79,8 +76,8 @@ router.get('/:personId', async (req, res, next) => {
         role: castRole
           ? `Actor - ${castRole.character}`
           : crewRole
-          ? `${crewRole.job}${crewRole.department ? ` (${crewRole.department})` : ''}`
-          : null,
+            ? `${crewRole.job}${crewRole.department ? ` (${crewRole.department})` : ''}`
+            : null,
       };
     });
 
@@ -134,8 +131,8 @@ router.get('/:personId', async (req, res, next) => {
         role: castRole
           ? `Actor - ${castRole.character}`
           : crewRole
-          ? `${crewRole.job}${crewRole.department ? ` (${crewRole.department})` : ''}`
-          : null,
+            ? `${crewRole.job}${crewRole.department ? ` (${crewRole.department})` : ''}`
+            : null,
       };
     });
 
